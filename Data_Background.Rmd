@@ -1,0 +1,144 @@
+---
+title: "Data Background Work"
+author: "Teresa Rokos"
+date: "1/9/2019"
+output: html_document
+---
+
+```{r, include=FALSE}
+library(knitr)
+library(tidyverse)
+library(fs)
+library(readxl)
+library(janitor)
+library(scales)
+library(ggthemes)
+```
+
+## Raw data from NH HealthCost
+To obtain some data on hospital costs, I copy and pasted tables from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) for particular medical procedures and services into Excel spreadsheets (one for each medical procedure/service). At first, I attempted to mimic the 8 selected services analyzed in [Cooper et al. (2018)](https://healthcarepricingproject.org/sites/default/files/20180507_variationmanuscript_0.pdf) (Inpatient, Hip Replacement, Knee Replacement, Cesarean Section, Vaginal Delivery, PTCA, Colonoscopy, and Lower Limb MRI), but the website only had data for colonoscopies and MRIs. I therefore chose 8 of my own procedures somewhat randomly but with an eye towards those that would be plausibly undifferentiated between hospitals. These initial 8 procedures were: Arthroscopic Knee Surgery (outpatient), Diagnostic colonoscopy (outpatient), Colonoscopy with biopsy (outpatient), Colonoscopy with polyp removal (outpatient), MRI - Pelvis (outpatient), X-Ray - Ankle (outpatient), MRI - Knee (outpatient), Blood test for complete blood cell count (hemoglobin).
+
+```{r, include=FALSE}
+# I have moved the raw Excel files into my R project in the "NH_HealthCost_data" folder. There is a separate .xlsx file for each type of procedure and a separate sheet for each insurer.
+
+`29881 Arthroscopic Knee Surgery (outpatient)` <- bind_rows(
+  "NH_HealthCost_data/29881 Arthroscopic Knee Surgery (outpatient).xlsx" %>%
+                              excel_sheets() %>%
+                              set_names() %>%
+                              map(read_excel, path = "NH_HealthCost_data/29881 Arthroscopic Knee Surgery (outpatient).xlsx"), .id = 
+                               "Insurer")
+
+`45378 Diagnostic colonoscopy (outpatient)` <- bind_rows(
+  "NH_HealthCost_data/45378 Diagnostic colonoscopy (outpatient).xlsx" %>%
+                              excel_sheets() %>%
+                              set_names() %>%
+                              map(read_excel, path = "NH_HealthCost_data/45378 Diagnostic colonoscopy (outpatient).xlsx"), .id = 
+                               "Insurer")
+
+`45380 Colonoscopy with biopsy (outpatient)` <- bind_rows(
+  "NH_HealthCost_data/45380 Colonoscopy with biopsy (outpatient).xlsx" %>%
+                              excel_sheets() %>%
+                              set_names() %>%
+                              map(read_excel, path = "NH_HealthCost_data/45380 Colonoscopy with biopsy (outpatient).xlsx"), .id = 
+                               "Insurer")
+
+`45385 Colonoscopy with polyp removal (outpatient)` <- bind_rows(
+  "NH_HealthCost_data/45385 Colonoscopy with polyp removal (outpatient).xlsx" %>%
+                              excel_sheets() %>%
+                              set_names() %>%
+                              map(read_excel, path = "NH_HealthCost_data/45385 Colonoscopy with polyp removal (outpatient).xlsx"), .id = 
+                               "Insurer")
+
+`72197 MRI - Pelvis (outpatient)` <- bind_rows(
+  "NH_HealthCost_data/72197 MRI - Pelvis (outpatient).xlsx" %>%
+                              excel_sheets() %>%
+                              set_names() %>%
+                              map(read_excel, path = "NH_HealthCost_data/72197 MRI - Pelvis (outpatient).xlsx"), .id = 
+                               "Insurer")
+
+`73610 X-Ray - Ankle (outpatient)` <- bind_rows(
+  "NH_HealthCost_data/73610 X-Ray - Ankle (outpatient).xlsx" %>%
+                              excel_sheets() %>%
+                              set_names() %>%
+                              map(read_excel, path = "NH_HealthCost_data/73610 X-Ray - Ankle (outpatient).xlsx"), .id = 
+                               "Insurer")
+
+`73721 MRI - Knee (outpatient)` <- bind_rows(
+  "NH_HealthCost_data/73721 MRI - Knee (outpatient).xlsx" %>%
+                              excel_sheets() %>%
+                              set_names() %>%
+                              map(read_excel, path = "NH_HealthCost_data/73721 MRI - Knee (outpatient).xlsx"), .id = 
+                               "Insurer")
+
+`85027 Blood test for complete blood cell count (hemoglobin)` <- bind_rows(
+  "NH_HealthCost_data/85027 Blood test for complete blood cell count (hemoglobin).xlsx" %>%
+                              excel_sheets() %>%
+                              set_names() %>%
+                              map(read_excel, path = "NH_HealthCost_data/85027 Blood test for complete blood cell count (hemoglobin).xlsx"), .id = 
+                               "Insurer")
+
+eight_procedures <- bind_rows(`29881 Arthroscopic Knee Surgery (outpatient)`,
+                              `45378 Diagnostic colonoscopy (outpatient)`,
+                              `45380 Colonoscopy with biopsy (outpatient)`,
+                              `45385 Colonoscopy with polyp removal (outpatient)`,
+                              `72197 MRI - Pelvis (outpatient)`,
+                              `73610 X-Ray - Ankle (outpatient)`,
+                              `73721 MRI - Knee (outpatient)`,
+                              `85027 Blood test for complete blood cell count (hemoglobin)`,
+                              .id = "Procedure") %>% 
+  mutate(Procedure = case_when(Procedure == 1 ~ "29881 Arthroscopic Knee Surgery (outpatient)",
+                              Procedure == 2 ~ "45378 Diagnostic colonoscopy (outpatient)",
+                              Procedure == 3 ~ "45380 Colonoscopy with biopsy (outpatient)",
+                              Procedure == 4 ~ "45385 Colonoscopy with polyp removal (outpatient)",
+                              Procedure == 5 ~ "72197 MRI - Pelvis (outpatient)",
+                              Procedure == 6 ~ "73610 X-Ray - Ankle (outpatient)",
+                              Procedure == 7 ~ "73721 MRI - Knee (outpatient)",
+                              Procedure == 8 ~ "85027 Blood test for complete blood cell count (hemoglobin)")) %>% 
+  separate(Procedure, into = c("CPT_code", "procedure"), sep = " ", extra = "merge")
+
+eight_procedures <- clean_names(eight_procedures, case = "snake")
+
+eight_procedures$insurer <- str_replace_all(eight_procedures$insurer, "Anthem - NH", "Anthem NH")
+
+eight_procedures <- eight_procedures %>% 
+  mutate(estimate_of_total_cost = case_when(is.na(estimate_of_total_cost) ~ estimate_of_procedure_cost,
+                                            !is.na(estimate_of_total_cost) ~ estimate_of_total_cost)) %>% 
+  rename(provider_name = provider_name_compare_selected)
+
+eight_procedures %>% 
+  count(provider_name, procedure) %>%
+  count(provider_name) %>% 
+  arrange(desc(nn))
+
+```
+
+```{r, echo=FALSE}
+
+eight_procedures %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00")) +
+  coord_flip() +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  scale_x_discrete(name = "Insurer") +
+  labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "(All eight procedures)")
+```
+
+
+
+```{r, echo=FALSE}
+
+eight_procedures %>%
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  facet_wrap(~procedure, nrow = 4, ncol = 2) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00")) +
+  coord_flip() +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  ggtitle("Broken down by procedure") +
+  theme(axis.title.y = element_blank())
+```
+
+
