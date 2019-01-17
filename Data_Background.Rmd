@@ -105,11 +105,6 @@ eight_procedures <- eight_procedures %>%
                                             !is.na(estimate_of_total_cost) ~ estimate_of_total_cost)) %>% 
   rename(provider_name = provider_name_compare_selected)
 
-eight_procedures %>% 
-  count(provider_name, procedure) %>%
-  count(provider_name) %>% 
-  arrange(desc(nn))
-
 ```
 
 ```{r, echo=FALSE}
@@ -125,8 +120,6 @@ eight_procedures %>%
   labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "(All eight procedures)")
 ```
 
-
-
 ```{r, echo=FALSE}
 
 eight_procedures %>%
@@ -139,6 +132,30 @@ eight_procedures %>%
   scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
   ggtitle("Broken down by procedure") +
   theme(axis.title.y = element_blank())
+```
+
+###Within Hospital Price Variation
+A large part of the motivation behind this thesis is due to the existence of within-hospital variation of prices: for the exact same service, hospitals are able to charge different payers different amounts. Below are some visual examples to illustrate this variation between the three major private payers for the exact same service at the exact same hospital.
+```{r, echo=FALSE}
+eight_procedures %>% 
+  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("None", "Other")) %>% 
+  count(provider_name, insurer) %>% 
+  count(provider_name) %>% 
+  filter(nn == 3) %>%
+  left_join(eight_procedures, by = "provider_name") %>% 
+  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("None", "Other")) %>%
+  group_by(provider_name) %>% 
+  mutate(range = max(estimate_of_total_cost) - min(estimate_of_total_cost)) %>% 
+  filter(range > 100) %>% 
+  ggplot(aes(x = provider_name, y = estimate_of_total_cost, fill = insurer)) +
+  geom_col(position = "dodge", width = 0.5) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00")) +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: X-Ray - Ankle (outpatient)")
 ```
 
 
