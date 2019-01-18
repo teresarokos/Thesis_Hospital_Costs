@@ -1,5 +1,5 @@
 ---
-title: "Data Background Work"
+title: "Thesis Data Background Work"
 author: "Teresa Rokos"
 date: "1/9/2019"
 output: html_document
@@ -13,10 +13,21 @@ library(readxl)
 library(janitor)
 library(scales)
 library(ggthemes)
+library(stringi)
+```
+
+## Background
+This thesis is interested in evaluating how the market power of insurers and hospitals in sub-markets determines the prices insurers and hospitals negotiate for hospital care. New Hampshire provides a carrier-specific prices by hospital for particular medical procedures and services on the [NH HealthCost website](https://nhhealthcost.nh.gov/costs/select) and therefore provides a unique case-study of insurer versus hospital market power. The pie charts below are taken from the [NH Insurance Department 2017 Final Report of Health Care Premium and Claim Cost Drivers](https://www.nh.gov/insurance/reports/documents/2018-nhid-annual-hearing-final-report.pdf) (published November 2018) and illustrate relevant information about the insurance market in New Hampshire.
+
+```{r, echo=FALSE, out.width="100%"}
+knitr::include_graphics("Images/statewide_coverage_type.png")
+knitr::include_graphics("Images/employee_coverage_by_insurer.png")
 ```
 
 ## Raw data from NH HealthCost
-To obtain some data on hospital costs, I copy and pasted tables from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) for particular medical procedures and services into Excel spreadsheets (one for each medical procedure/service). At first, I attempted to mimic the 8 selected services analyzed in [Cooper et al. (2018)](https://healthcarepricingproject.org/sites/default/files/20180507_variationmanuscript_0.pdf) (Inpatient, Hip Replacement, Knee Replacement, Cesarean Section, Vaginal Delivery, PTCA, Colonoscopy, and Lower Limb MRI), but the website only had data for colonoscopies and MRIs. I therefore chose 8 of my own procedures somewhat randomly but with an eye towards those that would be plausibly undifferentiated between hospitals. These initial 8 procedures were: Arthroscopic Knee Surgery (outpatient), Diagnostic colonoscopy (outpatient), Colonoscopy with biopsy (outpatient), Colonoscopy with polyp removal (outpatient), MRI - Pelvis (outpatient), X-Ray - Ankle (outpatient), MRI - Knee (outpatient), Blood test for complete blood cell count (hemoglobin).
+To obtain some data on hospital costs, I copy and pasted tables from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) for particular medical procedures and services into Excel spreadsheets (one for each medical procedure/service). At first, I attempted to mimic the 8 selected services analyzed in [Cooper et al. (2018)](https://healthcarepricingproject.org/sites/default/files/20180507_variationmanuscript_0.pdf) (Inpatient, Hip Replacement, Knee Replacement, Cesarean Section, Vaginal Delivery, PTCA, Colonoscopy, and Lower Limb MRI), but the website only had data for colonoscopies and MRIs. I therefore chose 8 of my own procedures somewhat randomly: Arthroscopic Knee Surgery (outpatient), Diagnostic colonoscopy (outpatient), Colonoscopy with biopsy (outpatient), Colonoscopy with polyp removal (outpatient), MRI - Pelvis (outpatient), X-Ray - Ankle (outpatient), MRI - Knee (outpatient), Blood test for complete blood cell count (hemoglobin).
+
+This allowed me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. The following boxplots depict the various distributions of estimated prices for each private insurer.
 
 ```{r, include=FALSE}
 # I have moved the raw Excel files into my R project in the "NH_HealthCost_data" folder. There is a separate .xlsx file for each type of procedure and a separate sheet for each insurer.
@@ -105,9 +116,30 @@ eight_procedures <- eight_procedures %>%
                                             !is.na(estimate_of_total_cost) ~ estimate_of_total_cost)) %>% 
   rename(provider_name = provider_name_compare_selected)
 
+eight_procedures$provider_name <- str_remove(eight_procedures$provider_name, "Compare ")
+
+eight_procedures <- eight_procedures %>% 
+  separate(provider_name,sep = " ", into = c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", 
+                                   "eleven")) %>%
+  select(-six, -eight, -ten) %>% 
+  mutate(two = case_when(!is.na(four) ~ two),
+         three = case_when(!(!is.na(two) & is.na(seven)) ~ three),
+         four = case_when(!is.na(three) ~ four),
+         four = case_when(!(!is.na(three) & is.na(nine)) ~ four),
+         five = case_when(!(!is.na(three) & is.na(four)) ~ five),
+         five = case_when(!(!is.na(four) & is.na(eleven)) ~ five),
+         seven = case_when(!(!is.na(four) & is.na(five)) ~ seven),
+         seven = case_when(!(!is.na(five) & !is.na(eleven)) ~ seven),
+         nine = case_when(!(is.na(seven) & !is.na(eleven)) ~ nine)) %>% 
+  unite("provider_name", c("one", "two", "three", "four", "five", "seven", "nine", "eleven"), sep = " ")
+eight_procedures$provider_name <- str_remove_all(eight_procedures$provider_name, "NA ")
+eight_procedures$provider_name <- str_remove_all(eight_procedures$provider_name, "NA")
+
 ```
 
-```{r, echo=FALSE}
+### Variation accross private payers (statewide)
+The following depict how prices vary across the state for the three major private insurers (Anthem NH, CIGNA, and Harvard Pilgrim). 
+```{r, echo=FALSE, out.width="100%"}
 
 eight_procedures %>% 
   ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
@@ -120,7 +152,7 @@ eight_procedures %>%
   labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "(All eight procedures)")
 ```
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, out.width="100%"}
 
 eight_procedures %>%
   ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
@@ -134,9 +166,13 @@ eight_procedures %>%
   theme(axis.title.y = element_blank())
 ```
 
-###Within Hospital Price Variation
+### Within Hospital Price Variation
 A large part of the motivation behind this thesis is due to the existence of within-hospital variation of prices: for the exact same service, hospitals are able to charge different payers different amounts. Below are some visual examples to illustrate this variation between the three major private payers for the exact same service at the exact same hospital.
-```{r, echo=FALSE}
+
+<br>
+
+For hospitals which had a price range between insurers >$100 for ankle x-rays:
+```{r, echo=FALSE, out.width="100%"}
 eight_procedures %>% 
   filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("None", "Other")) %>% 
   count(provider_name, insurer) %>% 
@@ -150,12 +186,43 @@ eight_procedures %>%
   ggplot(aes(x = provider_name, y = estimate_of_total_cost, fill = insurer)) +
   geom_col(position = "dodge", width = 0.5) +
   scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
-                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00")) +
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"), name = "Insurer") +
   scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank()) +
-  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: X-Ray - Ankle (outpatient)")
+  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: X-Ray - Ankle (outpatient)") + 
+  theme(axis.title.y = element_blank()) +
+  coord_flip()
+```
+
+<br>
+
+For hospitals which had a price range between insurers >$20 for blood tests:
+```{r, echo=FALSE, out.width="100%"}
+eight_procedures %>% 
+  filter(procedure == "Blood test for complete blood cell count (hemoglobin)", !insurer %in% c("None", "Other")) %>% 
+  count(provider_name, insurer) %>% 
+  count(provider_name) %>% 
+  filter(nn == 3) %>%
+  left_join(eight_procedures, by = "provider_name") %>% 
+  filter(procedure == "Blood test for complete blood cell count (hemoglobin)", !insurer %in% c("None", "Other")) %>%
+  group_by(provider_name) %>% 
+  mutate(range = max(estimate_of_total_cost) - min(estimate_of_total_cost)) %>% 
+  filter(range > 20) %>% 
+  ggplot(aes(x = provider_name, y = estimate_of_total_cost, fill = insurer)) +
+  geom_col(position = "dodge", width = 0.5) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"), name = "Insurer") +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: Blood test for complete blood cell count (hemoglobin)") + 
+  theme(axis.title.y = element_blank()) +
+  coord_flip()
+```
+
+<br>
+
+#### Map of New Hampshire Hospitals:
+Source: [New Hampshire Hospital Association](https://www.nhha.org/index.php/nh-hospitals/map-of-hospitals)
+```{r, echo=FALSE, out.width="100%"}
+knitr::include_graphics("Images/2018_Hospital_Map.png")
 ```
 
 
