@@ -226,3 +226,101 @@ knitr::include_graphics("Images/2018_Hospital_Map.png")
 ```
 
 
+
+
+## Statistical Analysis
+# Methodology
+The goal of this analysis is to determine whether there is a statistical difference between the prices hospitals charge Anthem, Harvard Pilgrim, and CIGNA in New Hampshire. That is, for the same service at the same hospital, is one insurer consistently paying a higher amount than the other two? In order to go about this, I want to create dummy variables for each of the insurers and regress on price.
+
+```{r}
+library(foreign)
+
+eight_procedures <- eight_procedures %>% 
+  mutate(Anthem_NH = case_when(insurer == "Anthem NH" ~ 1,
+                               insurer != "Anthem NH" ~ 0),
+         Harvard_Pilgrim_HC = case_when(insurer == "Harvard Pilgrim HC" ~ 1,
+                               insurer != "Harvard Pilgrim HC" ~ 0),
+         CIGNA = case_when(insurer == "CIGNA" ~ 1,
+                               insurer != "CIGNA" ~ 0)) 
+
+lm_eight_procedures <- eight_procedures %>% 
+  filter(!insurer %in% c("None", "Other")) %>% 
+  lm(formula = estimate_of_total_cost ~ CIGNA + Harvard_Pilgrim_HC + factor(provider_name) + factor(procedure))
+
+summary(lm_eight_procedures)
+
+
+eight_procedures %>% 
+  filter(!insurer %in% c("None", "Other"), procedure == "Blood test for complete blood cell count (hemoglobin)") %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"))
+```
+```{r}
+eight_procedures %>% 
+  filter(!insurer %in% c("None", "Other"), procedure == "Colonoscopy with biopsy (outpatient)") %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"))
+```
+
+```{r}
+eight_procedures %>% 
+  filter(!insurer %in% c("None", "Other"), procedure == "Colonoscopy with polyp removal (outpatient)") %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"))
+```
+
+```{r}
+eight_procedures %>% 
+  filter(!insurer %in% c("None", "Other"), procedure == "Diagnostic colonoscopy (outpatient)") %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"))
+```
+
+```{r}
+eight_procedures %>% 
+  filter(!insurer %in% c("None", "Other"), procedure == "MRI - Knee (outpatient)") %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"))
+```
+
+```{r}
+eight_procedures %>% 
+  filter(!insurer %in% c("None", "Other"), procedure == "MRI - Pelvis (outpatient)") %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"))
+```
+
+```{r}
+eight_procedures %>% 
+  filter(!insurer %in% c("None", "Other"), procedure == "X-Ray - Ankle (outpatient)") %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"))
+```
+
+```{r}
+eight_procedures %>% 
+  filter(!insurer %in% c("None", "Other"), procedure == "Arthroscopic Knee Surgery (outpatient)") %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"))
+```
+
+```{r}
+ write.csv(eight_procedures, file = "eight_procedures.csv")
+```
+
