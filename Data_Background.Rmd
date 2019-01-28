@@ -355,8 +355,7 @@ merge_sheets("NH_HealthCost_data/78452 Myocardial Imaging (outpatient).xlsx"),
 merge_sheets("NH_HealthCost_data/85027 Blood test for complete blood cell count (hemoglobin).xlsx"),
   .id = "Procedure"
 ) %>% 
-  mutate(Procedure = case_when(
-Procedure == 1 ~ "29881 Arthroscopic Knee Surgery (outpatient)",
+  mutate(Procedure = case_when(Procedure == 1 ~ "29881 Arthroscopic Knee Surgery (outpatient)",
 Procedure == 2 ~ "45378 Diagnostic colonoscopy (outpatient)",
 Procedure == 3 ~ "45380 Colonoscopy with biopsy (outpatient)",
 Procedure == 4 ~ "45385 Colonoscopy with polyp removal (outpatient)",
@@ -422,9 +421,6 @@ primary_data <- primary_data %>%
 primary_data$provider_name <- str_remove_all(primary_data$provider_name, "NA ")
 primary_data$provider_name <- str_remove_all(primary_data$provider_name, "NA")
 
-primary_data %>%
-  count(insurer) %>% 
-  arrange(desc(n))
 
 primary_data %>% 
   ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
@@ -438,17 +434,25 @@ primary_data %>%
 
 library(foreign)
 
+anthem_prices <- primary_data %>% 
+  filter(insurer == "Anthem NH") %>% 
+  mutate(anthem_price = estimate_of_total_cost) %>% 
+  select(cpt_code, procedure, provider_name, anthem_price)
+
 primary_data <- primary_data %>% 
-  mutate(Anthem_NH = case_when(insurer == "Anthem NH" ~ 1,
+  left_join(anthem_prices, by = c("cpt_code", "procedure", "provider_name")) %>% 
+  mutate(percent_of_anthem = estimate_of_total_cost/anthem_price,
+         Anthem_NH = case_when(insurer == "Anthem NH" ~ 1,
                                insurer != "Anthem NH" ~ 0),
          Harvard_Pilgrim_HC = case_when(insurer == "Harvard Pilgrim HC" ~ 1,
                                insurer != "Harvard Pilgrim HC" ~ 0),
          CIGNA = case_when(insurer == "CIGNA" ~ 1,
-                               insurer != "CIGNA" ~ 0)) 
+                               insurer != "CIGNA" ~ 0))
+  
 
 lm_primary_data <- primary_data %>% 
   filter(!insurer %in% c("None", "Other")) %>% 
-  lm(formula = estimate_of_total_cost ~ CIGNA + Harvard_Pilgrim_HC + factor(provider_name) + factor(procedure))
+  lm(formula = percent_of_anthem ~ CIGNA + Harvard_Pilgrim_HC + factor(provider_name) + factor(procedure))
 
 summary(lm_primary_data)
 ```
