@@ -30,73 +30,52 @@ To obtain some data on hospital costs, I copy and pasted tables from [NH HealthC
 This allowed me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. The following boxplots depict the various distributions of estimated prices for each private insurer.
 
 ```{r, include=FALSE}
+
 # I have moved the raw Excel files into my R project in the "NH_HealthCost_data" folder. There is a separate .xlsx file for each type of procedure and a separate sheet for each insurer.
 
-`29881 Arthroscopic Knee Surgery (outpatient)` <- bind_rows(
+eight_procedures <- bind_rows(
+  bind_rows(
   "NH_HealthCost_data/29881 Arthroscopic Knee Surgery (outpatient).xlsx" %>%
                               excel_sheets() %>%
                               set_names() %>%
-                              map(read_excel, path = "NH_HealthCost_data/29881 Arthroscopic Knee Surgery (outpatient).xlsx"), .id = 
-                               "Insurer")
-
-`45378 Diagnostic colonoscopy (outpatient)` <- bind_rows(
+                              map(read_excel, path = "NH_HealthCost_data/29881 Arthroscopic Knee Surgery (outpatient).xlsx"), .id = "Insurer"),
+  bind_rows(
   "NH_HealthCost_data/45378 Diagnostic colonoscopy (outpatient).xlsx" %>%
                               excel_sheets() %>%
                               set_names() %>%
-                              map(read_excel, path = "NH_HealthCost_data/45378 Diagnostic colonoscopy (outpatient).xlsx"), .id = 
-                               "Insurer")
-
-`45380 Colonoscopy with biopsy (outpatient)` <- bind_rows(
+                              map(read_excel, path = "NH_HealthCost_data/45378 Diagnostic colonoscopy (outpatient).xlsx"), .id = "Insurer"),
+  bind_rows(
   "NH_HealthCost_data/45380 Colonoscopy with biopsy (outpatient).xlsx" %>%
                               excel_sheets() %>%
                               set_names() %>%
-                              map(read_excel, path = "NH_HealthCost_data/45380 Colonoscopy with biopsy (outpatient).xlsx"), .id = 
-                               "Insurer")
-
-`45385 Colonoscopy with polyp removal (outpatient)` <- bind_rows(
+                              map(read_excel, path = "NH_HealthCost_data/45380 Colonoscopy with biopsy (outpatient).xlsx"), .id = "Insurer"),
+  bind_rows(
   "NH_HealthCost_data/45385 Colonoscopy with polyp removal (outpatient).xlsx" %>%
                               excel_sheets() %>%
                               set_names() %>%
-                              map(read_excel, path = "NH_HealthCost_data/45385 Colonoscopy with polyp removal (outpatient).xlsx"), .id = 
-                               "Insurer")
-
-`72197 MRI - Pelvis (outpatient)` <- bind_rows(
+                              map(read_excel, path = "NH_HealthCost_data/45385 Colonoscopy with polyp removal (outpatient).xlsx"), .id = "Insurer"),
+  bind_rows(
   "NH_HealthCost_data/72197 MRI - Pelvis (outpatient).xlsx" %>%
                               excel_sheets() %>%
                               set_names() %>%
-                              map(read_excel, path = "NH_HealthCost_data/72197 MRI - Pelvis (outpatient).xlsx"), .id = 
-                               "Insurer")
-
-`73610 X-Ray - Ankle (outpatient)` <- bind_rows(
+                              map(read_excel, path = "NH_HealthCost_data/72197 MRI - Pelvis (outpatient).xlsx"), .id = "Insurer"), 
+  bind_rows(
   "NH_HealthCost_data/73610 X-Ray - Ankle (outpatient).xlsx" %>%
                               excel_sheets() %>%
                               set_names() %>%
-                              map(read_excel, path = "NH_HealthCost_data/73610 X-Ray - Ankle (outpatient).xlsx"), .id = 
-                               "Insurer")
-
-`73721 MRI - Knee (outpatient)` <- bind_rows(
+                              map(read_excel, path = "NH_HealthCost_data/73610 X-Ray - Ankle (outpatient).xlsx"), .id = "Insurer"), 
+  bind_rows(
   "NH_HealthCost_data/73721 MRI - Knee (outpatient).xlsx" %>%
                               excel_sheets() %>%
                               set_names() %>%
-                              map(read_excel, path = "NH_HealthCost_data/73721 MRI - Knee (outpatient).xlsx"), .id = 
-                               "Insurer")
-
-`85027 Blood test for complete blood cell count (hemoglobin)` <- bind_rows(
+                              map(read_excel, path = "NH_HealthCost_data/73721 MRI - Knee (outpatient).xlsx"), .id = "Insurer"),
+  bind_rows(
   "NH_HealthCost_data/85027 Blood test for complete blood cell count (hemoglobin).xlsx" %>%
                               excel_sheets() %>%
                               set_names() %>%
-                              map(read_excel, path = "NH_HealthCost_data/85027 Blood test for complete blood cell count (hemoglobin).xlsx"), .id = 
-                               "Insurer")
-
-eight_procedures <- bind_rows(`29881 Arthroscopic Knee Surgery (outpatient)`,
-                              `45378 Diagnostic colonoscopy (outpatient)`,
-                              `45380 Colonoscopy with biopsy (outpatient)`,
-                              `45385 Colonoscopy with polyp removal (outpatient)`,
-                              `72197 MRI - Pelvis (outpatient)`,
-                              `73610 X-Ray - Ankle (outpatient)`,
-                              `73721 MRI - Knee (outpatient)`,
-                              `85027 Blood test for complete blood cell count (hemoglobin)`,
-                              .id = "Procedure") %>% 
+                              map(read_excel, path = "NH_HealthCost_data/85027 Blood test for complete blood cell count (hemoglobin).xlsx"), .id = "Insurer"),
+  .id = "Procedure"
+) %>% 
   mutate(Procedure = case_when(Procedure == 1 ~ "29881 Arthroscopic Knee Surgery (outpatient)",
                               Procedure == 2 ~ "45378 Diagnostic colonoscopy (outpatient)",
                               Procedure == 3 ~ "45380 Colonoscopy with biopsy (outpatient)",
@@ -108,8 +87,6 @@ eight_procedures <- bind_rows(`29881 Arthroscopic Knee Surgery (outpatient)`,
   separate(Procedure, into = c("CPT_code", "procedure"), sep = " ", extra = "merge")
 
 eight_procedures <- clean_names(eight_procedures, case = "snake")
-
-eight_procedures$insurer <- str_replace_all(eight_procedures$insurer, "Anthem - NH", "Anthem NH")
 
 eight_procedures <- eight_procedures %>% 
   mutate(estimate_of_total_cost = case_when(is.na(estimate_of_total_cost) ~ estimate_of_procedure_cost,
@@ -322,5 +299,157 @@ eight_procedures %>%
 
 ```{r}
  write.csv(eight_procedures, file = "eight_procedures.csv")
+```
+
+
+```{r}
+
+file_names <- dir_ls("NH_HealthCost_data/")
+
+merge_sheets <- function(x) {
+  bind_rows(
+    x %>%
+      excel_sheets() %>%
+      set_names() %>% 
+      map(read_excel, path = x), .id = "Insurer")
+}
+
+primary_data <- bind_rows(
+merge_sheets("NH_HealthCost_data/29881 Arthroscopic Knee Surgery (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/45378 Diagnostic colonoscopy (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/45380 Colonoscopy with biopsy (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/45385 Colonoscopy with polyp removal (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/51798 Urine Capacity Measurement.xlsx"),
+merge_sheets("NH_HealthCost_data/70450 CT - Head&Brain, without dye.xlsx"),
+merge_sheets("NH_HealthCost_data/70553 MRI - Brain (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/71020 X-Ray - Chest (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/71260 CT - Chest (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/72040 X-Ray - Neck (Spine, Cervical).xlsx"),
+merge_sheets("NH_HealthCost_data/72070 X-Ray - Middle Back (Spine, Thoracic).xlsx"),
+merge_sheets("NH_HealthCost_data/72100 X-Ray - Spine (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/72148 MRI - Back (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/72170 X-Ray - Pelvis.xlsx"),
+merge_sheets("NH_HealthCost_data/72197 MRI - Pelvis (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/73030 X-Ray - Shoulder (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/73110 X-Ray - Wrist (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/73130 X-Ray - Hand.xlsx"),
+merge_sheets("NH_HealthCost_data/73221 MRI - Shoulder, Elbow, or Wrist.xlsx"),
+merge_sheets("NH_HealthCost_data/73502 X-Ray - Hip.xlsx"),
+merge_sheets("NH_HealthCost_data/73562 X-Ray - Knee (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/73610 X-Ray - Ankle (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/73630 X-Ray - Foot (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/73721 MRI - Knee (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/74000 X-Ray - Abdomen.xlsx"),
+merge_sheets("NH_HealthCost_data/74177 CT - Abdomen & Pelvis, with contrast.xlsx"),
+merge_sheets("NH_HealthCost_data/76536 Ultrasound - Head and Neck.xlsx"),
+merge_sheets("NH_HealthCost_data/76642 Ultrasound - Breast (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/76700 Ultrasound - Abdominal, Complete.xlsx"),
+merge_sheets("NH_HealthCost_data/76705 Ultrasound - Abdominal, Limited.xlsx"),
+merge_sheets("NH_HealthCost_data/76805 Ultrasound - Pregnancy (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/76816 Ultrasound - Pregnancy follow-up.xlsx"),
+merge_sheets("NH_HealthCost_data/76830 Ultrasound - Transvaginal (non-maternity).xlsx"),
+merge_sheets("NH_HealthCost_data/76856 Ultrasound - Pelvic (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/77067 Mammogram (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/77080 Bone Density Scan (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/78452 Myocardial Imaging (outpatient).xlsx"),
+merge_sheets("NH_HealthCost_data/85027 Blood test for complete blood cell count (hemoglobin).xlsx"),
+  .id = "Procedure"
+) %>% 
+  mutate(Procedure = case_when(
+Procedure == 1 ~ "29881 Arthroscopic Knee Surgery (outpatient)",
+Procedure == 2 ~ "45378 Diagnostic colonoscopy (outpatient)",
+Procedure == 3 ~ "45380 Colonoscopy with biopsy (outpatient)",
+Procedure == 4 ~ "45385 Colonoscopy with polyp removal (outpatient)",
+Procedure == 5 ~ "51798 Urine Capacity Measurement",
+Procedure == 6 ~ "70450 CT - Head&Brain, without dye",
+Procedure == 7 ~ "70553 MRI - Brain (outpatient)",
+Procedure == 8 ~ "71020 X-Ray - Chest (outpatient)",
+Procedure == 9 ~ "71260 CT - Chest (outpatient)",
+Procedure == 10 ~ "72040 X-Ray - Neck (Spine, Cervical)",
+Procedure == 11 ~ "72070 X-Ray - Middle Back (Spine, Thoracic)",
+Procedure == 12 ~ "72100 X-Ray - Spine (outpatient)",
+Procedure == 13 ~ "72148 MRI - Back (outpatient)",
+Procedure == 14 ~ "72170 X-Ray - Pelvis",
+Procedure == 15 ~ "72197 MRI - Pelvis (outpatient)",
+Procedure == 16 ~ "73030 X-Ray - Shoulder (outpatient)",
+Procedure == 17 ~ "73110 X-Ray - Wrist (outpatient)",
+Procedure == 18 ~ "73130 X-Ray - Hand",
+Procedure == 19 ~ "73221 MRI - Shoulder, Elbow, or Wrist",
+Procedure == 20 ~ "73502 X-Ray - Hip",
+Procedure == 21 ~ "73562 X-Ray - Knee (outpatient)",
+Procedure == 22 ~ "73610 X-Ray - Ankle (outpatient)",
+Procedure == 23 ~ "73630 X-Ray - Foot (outpatient)",
+Procedure == 24 ~ "73721 MRI - Knee (outpatient)",
+Procedure == 25 ~ "74000 X-Ray - Abdomen",
+Procedure == 26 ~ "74177 CT - Abdomen & Pelvis, with contrast",
+Procedure == 27 ~ "76536 Ultrasound - Head and Neck",
+Procedure == 28 ~ "76642 Ultrasound - Breast (outpatient)",
+Procedure == 29 ~ "76700 Ultrasound - Abdominal, Complete",
+Procedure == 30 ~ "76705 Ultrasound - Abdominal, Limited",
+Procedure == 31 ~ "76805 Ultrasound - Pregnancy (outpatient)",
+Procedure == 32 ~ "76816 Ultrasound - Pregnancy follow-up",
+Procedure == 33 ~ "76830 Ultrasound - Transvaginal (non-maternity)",
+Procedure == 34 ~ "76856 Ultrasound - Pelvic (outpatient)",
+Procedure == 35 ~ "77067 Mammogram (outpatient)",
+Procedure == 36 ~ "77080 Bone Density Scan (outpatient)",
+Procedure == 37 ~ "78452 Myocardial Imaging (outpatient)",
+Procedure == 38 ~ "85027 Blood test for complete blood cell count (hemoglobin)")) %>% 
+  separate(Procedure, into = c("CPT_code", "procedure"), sep = " ", extra = "merge")
+
+primary_data <- clean_names(primary_data, case = "snake")
+
+primary_data <- primary_data %>% 
+  mutate(estimate_of_total_cost = case_when(is.na(estimate_of_total_cost) ~ estimate_of_procedure_cost,
+                                            !is.na(estimate_of_total_cost) ~ estimate_of_total_cost)) %>% 
+  rename(provider_name = provider_name_compare_selected)
+
+primary_data$provider_name <- str_remove(primary_data$provider_name, "Compare ")
+
+primary_data <- primary_data %>% 
+  separate(provider_name,sep = " ", into = c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", 
+                                   "eleven")) %>%
+  select(-six, -eight, -ten) %>% 
+  mutate(two = case_when(!is.na(four) ~ two),
+         three = case_when(!(!is.na(two) & is.na(seven)) ~ three),
+         four = case_when(!is.na(three) ~ four),
+         four = case_when(!(!is.na(three) & is.na(nine)) ~ four),
+         five = case_when(!(!is.na(three) & is.na(four)) ~ five),
+         five = case_when(!(!is.na(four) & is.na(eleven)) ~ five),
+         seven = case_when(!(!is.na(four) & is.na(five)) ~ seven),
+         seven = case_when(!(!is.na(five) & !is.na(eleven)) ~ seven),
+         nine = case_when(!(is.na(seven) & !is.na(eleven)) ~ nine)) %>% 
+  unite("provider_name", c("one", "two", "three", "four", "five", "seven", "nine", "eleven"), sep = " ")
+primary_data$provider_name <- str_remove_all(primary_data$provider_name, "NA ")
+primary_data$provider_name <- str_remove_all(primary_data$provider_name, "NA")
+
+primary_data %>%
+  count(insurer) %>% 
+  arrange(desc(n))
+
+primary_data %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00")) +
+  coord_flip() +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  scale_x_discrete(name = "Insurer") +
+  labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "(27 procedures)")
+
+library(foreign)
+
+primary_data <- primary_data %>% 
+  mutate(Anthem_NH = case_when(insurer == "Anthem NH" ~ 1,
+                               insurer != "Anthem NH" ~ 0),
+         Harvard_Pilgrim_HC = case_when(insurer == "Harvard Pilgrim HC" ~ 1,
+                               insurer != "Harvard Pilgrim HC" ~ 0),
+         CIGNA = case_when(insurer == "CIGNA" ~ 1,
+                               insurer != "CIGNA" ~ 0)) 
+
+lm_primary_data <- primary_data %>% 
+  filter(!insurer %in% c("None", "Other")) %>% 
+  lm(formula = estimate_of_total_cost ~ CIGNA + Harvard_Pilgrim_HC + factor(provider_name) + factor(procedure))
+
+summary(lm_primary_data)
 ```
 
