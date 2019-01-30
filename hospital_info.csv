@@ -1,11 +1,11 @@
-﻿provider_name,n,lat,long
+provider_name,n,lat,long
 Elliot Hospital,174,42.98417,71.43664
-Southern NH Medical Center,167,42.75635,71.46210
+Southern NH Medical Center,167,42.75635,71.4621
 Mary Hitchcock Memorial Hospital,162,43.67502,72.27326
 Exeter Hospital,156,42.98258,70.93566
 St. Joseph Hospital,149,42.74919,71.48044
 Concord Hospital,130,43.19943,71.56275
-Portsmouth Regional Hospital,119,43.06486,70.79060
+Portsmouth Regional Hospital,119,43.06486,70.7906
 Steward Medical Group,117,42.72756,71.16834
 Cheshire Medical Center,115,42.94868,72.29198
 Lakes Region General Healthcare,114,43.52832,71.46324
@@ -20,7 +20,7 @@ York Hospital,90,43.14231,70.65228
 Anna Jaques Hospital,88,42.81459,70.89138
 Frisbie Memorial Hospital,83,43.29738,70.96053
 Huggins Hospital,75,43.58176,71.20049
-Alice Peck Day Memorial Hospital,70,43.64100,72.26393
+Alice Peck Day Memorial Hospital,70,43.641,72.26393
 Valley Regional Hospital,70,43.38454,72.34092
 Lowell General Hospital,69,42.64574,71.30145
 Androscoggin Valley Hospital,66,44.48742,71.15639
@@ -31,7 +31,7 @@ Weeks Medical Center,57,44.48613,71.55442
 Access Sports Medicine & Orthopaedics,56,42.97682,70.91742
 Concord Orthopaedics,56,43.19739,71.56455
 Seacoast Orthopedics & Sports Medicine,53,43.24871,70.89898
-Core Physicians,49,42.97467,70.91140
+Core Physicians,49,42.97467,70.9114
 Cottage Hospital,49,44.13568,72.02299
 Convenient MD,46,43.20792,71.52897
 Springfield Medical Care System,43,43.29813,72.49421
@@ -45,41 +45,41 @@ Atlantic Orthopaedics,33,43.04043,70.77545
 Bedford Ambulatory Surgical Center,33,42.96063,71.47683
 Dartmouth-Hitchcock (Manchester),33,43.01043,71.42333
 Dartmouth-Hitchcock (Nashua),33,42.78508,71.49803
-Veterans Administration Medical Center,30,43.01234,71.44100
+Veterans Administration Medical Center,30,43.01234,71.441
 Dartmouth-Hitchcock (Keene),29,42.94864,72.29178
 LRGHealthcareLRGHealthcare,29,43.52858,71.46513
 Concord Imaging Center,28,43.21911,71.53495
 Dartmouth-Hitchcock (Concord),28,43.19545,71.56289
 Orthopaedic Surgical Associates,27,42.62629,71.36575
-Bedford Commons OBGYN,22,,
-Manchester Obstetrical Associates,22,,
-Partners For Women's Health,21,,
-Garrison Women's Health Center,20,,
-Orthopaedics Northeast,20,,
-Shields Imaging,20,,
-Dartmouth-Hitchcock Medical Center,19,,
-Dover Women's Health,18,,
-Harbour Women's Health,18,,
-Monadnock OBGYN Associates,18,,
-Wentworth Surgery Center,18,,
-New Hampshire Neurospine Institute,16,,
-Portsmouth Ambulatory Surgery Center,16,,
-Concord Endoscopy Surgery Center,14,,
-Orchard Surgical Center,14,,
-Four Seasons Imaging,13,,
-Stratham Ambulatory Surgery Center (paradigm ),13,,
-The Surgery Center of Greater Nashua,12,,
-Krislan of New England,11,,
-Northeast Endoscopy Center,10,,
-Northeastern Vermont Regional Hospital,10,,
-Bedford Ambulatory Surgical Center Imaging,9,,
-Concord OBGYN,9,,
-"Mary Jo Montanarella, MD",9,,
-Merrimack Valley Endoscopy Center,9,,
-"Thomas Vaill King, MD",9,,
-Women's Life Imaging,9,,
-Capital Orthopaedic Surgery Center,8,,
-Martin's Point Health Care,8,,
+Bedford Commons OBGYN,22,42.962426,71.479441
+Manchester Obstetrical Associates,22,42.983645,71.435331
+Partners For Women's Health,21,42.982759,70.935773
+Garrison Women's Health Center,20,43.211365,70.875051
+Orthopaedics Northeast,20,42.648017,71.18536
+Shields Imaging,20,43.040398,70.77545
+Dartmouth-Hitchcock Medical Center,19,43.675802,72.273518
+Dover Women's Health,18,43.207844,70.875755
+Harbour Women's Health,18,43.055844,70.798066
+Monadnock OBGYN Associates,18,42.894232,71.937941
+Wentworth Surgery Center,18,43.249884,70.901592
+New Hampshire Neurospine Institute,16,42.941032,71.466904
+Portsmouth Ambulatory Surgery Center,16,43.064921,70.790665
+Concord Endoscopy Surgery Center,14,43.219084,71.534954
+Orchard Surgical Center,14,42.77178,71.245213
+Four Seasons Imaging,13,42.748806,71.495838
+Stratham Ambulatory Surgery Center (paradigm ),13,42.994935,70.927638
+The Surgery Center of Greater Nashua,12,42.756614,71.460921
+Krislan of New England,11,43.212517,71.538116
+Northeast Endoscopy Center,10,42.617638,71.321868
+Northeastern Vermont Regional Hospital,10,44.445695,72.009897
+Bedford Ambulatory Surgical Center Imaging,9,42.961172,71.477895
+Concord OBGYN,9,43.212701,71.540007
+"Mary Jo Montanarella, MD",9,42.985618,71.438474
+Merrimack Valley Endoscopy Center,9,42.775961,71.077938
+"Thomas Vaill King, MD",9,43.064897,70.790558
+Women's Life Imaging,9,43.242553,70.898887
+Capital Orthopaedic Surgery Center,8,43.197377,71.564653
+Martin's Point Health Care,8,43.081523,70.794744
 "Andrea M Dionne, DO",7,,
 Appledore Medical Group,7,,
 Elliot One-Day Surgery Center,7,,
