@@ -1,7 +1,7 @@
 ---
 title: "Thesis Data Background Work"
 author: "Teresa Rokos"
-date: "1/28/2019"
+date: "February 2019"
 output: html_document
 ---
 
@@ -136,12 +136,13 @@ primary_data$provider_name <- str_remove_all(primary_data$provider_name, " NA")
 ```
 
 ## Introduction
-This thesis evaluates how the market power of insurers and hospitals in geographical sub-markets determines the prices insurers and hospitals negotiate for hospital care. I will compare how much the variation in prices is explained by variation in costs versus variation in the context of bilateral negotiations between hospitals and insurers, specifically how this context is affected by market power. New Hampshire publishes carrier-specific prices by hospital for outpatient medical procedures and services on the [NH HealthCost website](https://nhhealthcost.nh.gov/costs/select) and therefore provides a unique case-study of insurer versus hospital market power. This allows me to compare the prices each insurer pays for the exact same services, and study how these prices may be related to the relative market power of insurers and hospitals.
+### Abstract
+This thesis evaluates how the market power of insurers and hospitals in geographical sub-markets determines the prices insurers and hospitals negotiate for hospital care. I will examine to what extent the variation in prices is explained by variation in costs and quality versus variation in market power, which may play an important role in bilateral price negotiations for services. Using carrier-hospital specific prices for outpatient medical procedures from New Hampshire's [NH HealthCost website](https://nhhealthcost.nh.gov/costs/select), I compare the estimated prices for the same services across the state, both between hospitals and within hospitals.
 
 ### Motivation
 The U.S.'s expenditure on health care has grown rapidly over the last few decades and has outpaced that of many peer countries without significant returns to quality (e.g. OECD 2017; Etehad and Kim 2017; Reinhardt et al., 2004).  A substantial body of research has determined that the biggest driver behind the U.S. health care expenditure is not greater utilization or social spending but quite simply higher prices (e.g. Anderson et al., 2003; Papanicolas et al., 2018). Given that the $3.3 trillion spent on health care annually (17.9% of GDP) (Centers for Disease Control and Prevention 2017) erodes the budgets of families and individuals, state and local governments, and the federal government, understanding the sources of variation in these prices is of tremendous import. 
 
-I focus on hospital prices because hospital care constitutes the largest component of U.S. health care spending at 32.4% ($1.0825 trillion) of national health expenditure while physician and clinical services compose only 19.9% and prescription drugs account for 9.8% (Centers for Disease Control and Prevention 2017). 
+I choose to focus this paper on hospital prices because hospital care constitutes the largest component of U.S. health care spending at 32.4% ($1.0825 trillion) of national health expenditure (Centers for Disease Control and Prevention 2017) as shown in Figure 1, and a vast body of research has identified wide variation in private insurance reimbursements to hospitals for the same services and/or diagnoses ***citations***. Cooper et al., 2015 finds that for the privately insured, only about half of the variation in expenditure is due to the quantity of care delivered while half is purely driven by price variation while 95% of the variation in expenditure for public programs like Medicare is explained by variation in the quantity of care delivered. 
 ```{r, echo=FALSE, out.width="100%"}
 
 # Creating a graphic to show the growth in U.S. health care spending over time and specifically the growth in hospital care spending
@@ -172,7 +173,7 @@ health_expenditures <- health_expenditures %>%
 
 ggplot(data = health_expenditures) +
   geom_line(mapping = aes(x = year, y = percent_of_gdp, color = fct_reorder(component_of_exp, -percent_of_gdp))) +
-  labs(title = "Health Care Spending in the U.S. over time", caption = paste0("Source: Centers for Disease Control and Prevention 2017")) +
+  labs(title = "Figure 1: Health Care Spending in the U.S. over time", caption = "Source: Centers for Disease Control and Prevention 2017") +
   scale_y_continuous(name = "Spending (percentage of GDP)", labels = percent) +
   scale_x_continuous(name = "Year", breaks = c(1960, 1970, 1980, 1990, 2000, 2010)) +
   scale_color_manual(name = "Component of Spending", values = c("percent_nhe" = "black", 
@@ -181,7 +182,65 @@ ggplot(data = health_expenditures) +
                                                                 "percent_pde" = "light gray"),
                     labels = c("Total National Health Expenditure", "Hospital Care", "Physician and Clinical Services", "Prescription Drugs"))
 ```
-For public programs like Medicare, 95% of the variation in expenditure is explained by variation in the quantity of care delivered, but for the privately insured, only about half of the variation in expenditure is due to the quantity of care delivered while half is purely driven by price variation (Cooper et al., 2015). Given that the largest portion of Americans (49%) receive health care coverage from their employer through private insurance companies rather than through Medicare and Medicaid (Kaiser Family Foundation 2017), this price variation among private insurers affects what many Americans pay out of pocket for their healthcare. Moreover, this variation persists even when costs and quality are held constant: for the exact same service, hospitals are able to charge different payers vastly different amounts. Below are some visual examples from the data that illustrate this variation between the three major private payers in New Hampshire (Anthem - NH, CIGNA, and Harvard Pilgrim Health Care) for the exact same service at the exact same hospital. 
+ 
+Given that the largest portion of Americans (49%) receive health care coverage from their employer through private insurance plans rather than through Medicare and Medicaid (Kaiser Family Foundation 2017), this price variation among private insurers may affect what many Americans pay out of pocket for their healthcare. Moreover, this prior research such as Cooper et al. 2015 finds that this variation persists even when costs and quality are held constant. 
+
+This paper is most closely related to Cooper et al. 2015, but differs in several key respects: first, this analysis will focus a more complete set of price data for hospital care in New Hampshire, while Cooper et al. 2015 relied on HCCI data which is a national cross-section sample and relies on claims data from Aetna, Humana, and United Health. While the HCCI data is a rich set of data that is perhaps nationally representative in a broad sense, none of these insurers are major players in the New Hampshire market; secondly, this paper will devote more attention to insurers' relative market power as well as the effects on the uninsured who have minimal market power; lastly, I also include an analysis of how the share of Medicare patients at a given hospital affects the prices that hospital negotiates with private insurers.
+
+### Price Variation in the New Hampshire Market
+The New Hampshire Hospital Association provides a list of the [most commonly performed outpatient services](https://www.nhha.org/images/Data/Outpatient-CPT-List-2016.pdf) (for some reason, the top 82 most common) at hospitals throughout the state, and the average costs associated with each. I narrow this down to 10 for which NH HealthCost has data on and are on average some of the most expensive.
+```{r, echo=FALSE, out.width="100%"}
+
+top_cpt_codes <- read_xlsx("NHA_top_cpt_codes.xlsx", col_names = TRUE) %>% 
+  filter(!is.na(`CPT Code`))
+
+top_10_cpt <- top_cpt_codes %>% 
+  gather(-`CPT Code`, -Description, key = hospital, value = avg_price) %>% 
+  filter(!is.na(avg_price)) %>% 
+  group_by(`CPT Code`, Description) %>% 
+  summarize(avg_price_nh = mean(avg_price)) %>% 
+  arrange(desc(avg_price_nh)) %>% 
+  filter(Description %in% c("ARTHROSCOPY SHOULDER DECOM", "TONSILLECTOMY&ADNOIDECTOMY:UNDER AGE 12", "UPPER GI ENDOSCOPY, BIOPSY", 
+                            "DIAGNOSTIC COLONOSCOPY", "MRI BRAIN ‐ W/OUT CONTRAST", "CT BRAIN ‐ W/OUT CONTRAST", 
+                            "PELVIC ULTRASOUND ‐ NON OBGYN ( NON PREGNANCY)", "VAGINAL ULTRASOUND ‐ NON OBGYN (NON PREGNANCY)", 
+                            "ED VISIT‐ PROBLEM(S) ARE OF MODERATE SEVERITY", "SPINE X‐RAY (LUMBAR PA‐LAT)"))
+
+kable(top_10_cpt, col.names = c("CPT Code", "Description", "Average Price in NH ($)"), format.args = list(big.mark = ","), digits = 0,
+      caption = "Figure 2: 10 Common Outpatient Procedures in New Hampshire")
+```
+
+
+I also use [2015 outpatient charge data](https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Medicare-Provider-Charge-Data/Outpatient2015.html) from the Center for Medicaid and Medicare Services (CMS) to determine what kind of outpatient procedures tend to generate the greatest expenditures (as a result of both quality and price) as shown in Figure 2. In doing so, I assume that these outpatient patient procedures are at least somewhat representative of those required among non-Medicare patients.
+```{r, echo=FALSE, out.width="100%"}
+
+nh_medicare_2015_outpatient <- read_xlsx("Medicare_Charge_Outpatient_APC28_CY2015_Provider.xlsx", skip = 6, col_names = TRUE) %>% 
+ filter(`Provider\r\nState` == "NH")
+
+primary_data <- nh_medicare_2015_outpatient %>% 
+  count(`Provider ID`, `Provider Name`) %>% 
+  arrange(desc(n)) %>% 
+  mutate(provider_id = `Provider ID`, provider_name = `Provider Name`) %>% 
+  select(provider_id, provider_name) %>% 
+  full_join(primary_data, by = "provider_name")
+
+# Narrowing down top 10 outpatient procedures
+top_10_APC <- nh_medicare_2015_outpatient %>%
+  mutate(hospital_revenue = `Outpatient\r\nServices`*`Average\r\nTotal Payments`) %>% 
+  group_by(APC) %>% 
+  summarize(Revenue = sum(hospital_revenue)) %>% 
+  arrange(desc(Revenue)) %>% 
+  slice(1:10)
+
+kable(top_10_APC, col.names = c("Ambulatory Payment Classification (APC)", "Total 2015 Revenue (in $)"), 
+      caption = "Figure 3: Top 10 APCs in Terms of Revenue",
+      format.args = list(big.mark = ","))
+```
+
+<br>
+<br>
+<br>
+
+For the exact same service, hospitals are able to charge different payers vastly different amounts. Below are some visual examples from the data that illustrate this variation between the three major private payers in New Hampshire (Anthem - NH, CIGNA, and Harvard Pilgrim Health Care) for the exact same service at the exact same hospital. 
 
 <br>
 
@@ -291,15 +350,7 @@ plotly_nh_hospitals
 
 ### CMS Data on Provider ID and Medicare Reimbursement:
 ```{r, echo=FALSE}
-nh_medicare_2015_outpatient <- read_xlsx("Medicare_Charge_Outpatient_APC28_CY2015_Provider.xlsx", skip = 6, col_names = TRUE) %>% 
- filter(`Provider\r\nState` == "NH")
 
-primary_data <- nh_medicare_2015_outpatient %>% 
-  count(`Provider ID`, `Provider Name`) %>% 
-  arrange(desc(n)) %>% 
-  mutate(provider_id = `Provider ID`, provider_name = `Provider Name`) %>% 
-  select(provider_id, provider_name) %>% 
-  full_join(primary_data, by = "provider_name")
 ```
 
 <br>

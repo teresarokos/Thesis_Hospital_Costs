@@ -4,7 +4,10 @@ output: pdf_document
 
 \begin{centering}
 
-\vspace{7 cm}
+\normalsize
+.
+
+\vspace{6 cm}
 
 \Huge
 
@@ -14,6 +17,7 @@ output: pdf_document
 
 \Large
 Teresa Rokos
+
 
 \vspace{3 cm}
 

@@ -2,7 +2,7 @@
 output:
   pdf_document:
   number_sections: yes
-documentclass: report
+documentclass: article
 geometry: "left=1.5in, right=1in, top=1in, bottom=1in"
 fontsize: 12pt
 ---
@@ -144,16 +144,16 @@ primary_data <- primary_data %>%
 primary_data$provider_name <- str_remove_all(primary_data$provider_name, " NA")
 ```
 
-\section{Introduction}
+# Introduction
 
-\subsection{Abstract}
+## Abstract
 This thesis evaluates how the market power of insurers and hospitals in geographical sub-markets determines the prices insurers and hospitals negotiate for hospital care. I will compare how much the variation in prices is explained by variation in costs versus variation in the context of bilateral negotiations between hospitals and insurers, specifically how this context is affected by market power. New Hampshire publishes carrier-specific prices by hospital for outpatient medical procedures and services on the [NH HealthCost website](https://nhhealthcost.nh.gov/costs/select) and therefore provides a unique case-study of insurer versus hospital market power. This allows me to compare the prices each insurer pays for the exact same services, and study how these prices may be related to the relative market power of insurers and hospitals.
 
 
-\subsection{Motivation}
+## Motivation
 The U.S.'s expenditure on health care has grown rapidly over the last few decades and has outpaced that of many peer countries without significant returns to quality (e.g. OECD 2017; Etehad and Kim 2017; Reinhardt et al., 2004).  A substantial body of research has determined that the biggest driver behind the U.S. health care expenditure is not greater utilization or social spending but quite simply higher prices (e.g. Anderson et al., 2003; Papanicolas et al., 2018). Given that the $3.3 trillion spent on health care annually (17.9% of GDP) (Centers for Disease Control and Prevention 2017) erodes the budgets of families and individuals, state and local governments, and the federal government, understanding the sources of variation in these prices is of tremendous import. 
 
-\subsection{Industry Background}
+## Industry Background
 I focus on hospital prices because hospital care constitutes the largest component of U.S. health care spending at 32.4% ($1.0825 trillion) of national health expenditure while physician and clinical services compose only 19.9% and prescription drugs account for 9.8% (Centers for Disease Control and Prevention 2017). 
 ```{r, echo=FALSE, out.width="100%"}
 
@@ -221,14 +221,14 @@ primary_data %>%
 
 
 
-\subsection{Theoretical Framework}
+## Theoretical Framework
 Both the hospital and the insurer are often interested in maximizing their profit margins per patient, even if the hospital is a non-profit (Horwitz 2005), and maximizing the number of patients they serve. Hospitals want to receive higher prices for their services but also to be included in insurers' networks, as patients facing lower out-of-pocket costs when going to hospitals in network may be more likely to go to these hospitals. Insurers want to pay lower prices for hospitals’ services to minimize their costs but also want to attract enrollees by including convenient hospitals in their network. Thus, this is the bargaining environment in which bilateral hospital-insurer contracts are negotiated and the work below examines the impact on prices.
 
 
 
-\section{Data Sources}
+# Data Sources
 
-\subsection{Raw data from NH HealthCost}
+## Raw data from NH HealthCost
 The primary source of data on hospital costs comes from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) which provides insurer-hospital specific estimations of total costs (reimbursements) for a long list of outpatient services and procedures. I copy and pasted this information for particular medical procedures and services into Excel spreadsheets (one for each medical procedure/service). At first, I attempted to mimic the 8 selected services analyzed in [Cooper et al. (2018)](https://healthcarepricingproject.org/sites/default/files/20180507_variationmanuscript_0.pdf) (Inpatient, Hip Replacement, Knee Replacement, Cesarean Section, Vaginal Delivery, PTCA, Colonoscopy, and Lower Limb MRI), but the website only had data for colonoscopies and MRIs. I therefore chose to first look at radiology services only as these types of services (CT scans, MRIs, X-rays) should be reasonably assumed to have constant costs and quality within the same hospital. This allowed me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. 
 
 The following boxplot depicts the various distributions of estimated prices for each private insurer.
@@ -244,7 +244,7 @@ primary_data %>%
   labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "(27 procedures)")
 ```
 
-\subsection{Insurance Coverage in New Hampshire}
+## Insurance Coverage in New Hampshire
 The pie charts below are taken from the [NH Insurance Department 2017 Final Report of Health Care Premium and Claim Cost Drivers](https://www.nh.gov/insurance/reports/documents/2018-nhid-annual-hearing-final-report.pdf) (published November 2018) and illustrate relevant information about the insurance market in New Hampshire.
 
 ```{r, echo=FALSE, out.width="100%"}
@@ -253,10 +253,10 @@ knitr::include_graphics("Images/employee_coverage_by_insurer.png")
 ```
 
 
-\subsection{Location of New Hampshire Hospitals (from Google Maps data):}
+## Location of New Hampshire Hospitals (from Google Maps data):
 
 
-\subsection{CMS Data on Provider ID and Medicare Reimbursement:}
+## CMS Data on Provider ID and Medicare Reimbursement:
 ```{r, echo=FALSE}
 nh_medicare_2015_outpatient <- read_xlsx("Medicare_Charge_Outpatient_APC28_CY2015_Provider.xlsx", skip = 6, col_names = TRUE) %>% 
  filter(`Provider\r\nState` == "NH")
@@ -271,7 +271,7 @@ primary_data <- nh_medicare_2015_outpatient %>%
 
 
 
-\section{Methodology}
+# Methodology
 The goal of this analysis is to determine whether there is a statistical difference between the prices hospitals charge Anthem, Harvard Pilgrim, and CIGNA in New Hampshire. That is, for the same service at the same hospital, is one insurer consistently paying a higher amount than the other two?
 
 I create dummy variables for each of the insurers and a new variable ("percent_of_anthem") which is the price as a percentage of the price Anthem pays for the same procedure at the same hospital. Data on the price Anthem pays certain hospitals for certain procedures is unavailable either because Anthem does not have a contract with that hospital or price information is simply not available for that particular procedure. This leads 1360 observations of 4511 total observations to be dropped from the analysis, leaving 3151 observations (unique hospital-insurer-procedure combinations) remaining. With the remaining data, I regress the "percent_of_anthem" variable on each insurer dummy variable (with the Anthem dummy being excluded) and include procedure fixed effects and hospital fixed effects to isolate within-hospital variation of prices and therefore plausibly control for quality and costs.
