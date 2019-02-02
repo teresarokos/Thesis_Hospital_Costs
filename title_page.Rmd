@@ -1,0 +1,35 @@
+---
+output: pdf_document
+---
+
+\begin{centering}
+
+\vspace{7 cm}
+
+\Huge
+
+{\bf Market Power and Hospital Prices: Evidence from New Hampshire}
+
+\vspace{3 cm}
+
+\Large
+Teresa Rokos
+
+\vspace{3 cm}
+
+
+\normalsize
+PRESENTED TO THE DEPARTMENT OF ECONOMICS\\
+IN PARTIAL FULFILLMENT OF THE REQUIREMENTS FOR\\
+A BACHELOR OF ARTS DEGREE WITH HONORS\\
+
+
+\vspace{3 cm}
+
+\normalsize
+Harvard College
+
+\normalsize
+February 2019
+
+\end{centering}
