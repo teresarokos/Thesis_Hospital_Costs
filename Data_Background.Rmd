@@ -128,7 +128,7 @@ primary_data <- primary_data %>%
                                             is.na(what_you_will_pay) ~ estimate_of_total_cost)) %>% 
   rename(provider_name = provider_name_compare_selected)
 
-primary_data$insurer <- str_replace(primary_data$insurer, "None", "Uninsured")
+primary_data$insurer <- str_replace(primary_data$insurer, "Uninsured", "Uninsured")
 
 primary_data$provider_name <- str_remove(primary_data$provider_name, "Compare ")
 
@@ -155,6 +155,66 @@ primary_data <- primary_data %>%
                                                    "Merrimack Valley Endoscopy Center", "Anna Jacques Hospital") ~ "METROPOLITAN BOSTON, MA",
                               provider_name == "York Hospital" ~ "SOUTHERN MAINE",
                               TRUE ~ "NEW HAMPSHIRE"))
+
+
+
+# Constructin Medicare prices and adding to primary data set
+RVU18_info <- read_xlsx("RVU18A_files/PPRRVU18_JAN_mod.xlsx", skip = 9, col_names = TRUE) %>% 
+  rename(cpt_code = HCPCS) %>% 
+  filter(cpt_code %in% c(primary_data$cpt_code, 
+                         "29806", "29807", "29819", "29820", "29821", "29822", "29823", "29824", "29825",
+                         "29873", "29874", "29875", "29876", "29877", "29879", "29880", "29881",
+                         "42821",
+                         "45384",
+                         "71045", "71046", "71047", "71048",
+                         "72050",
+                         "72072", "72074",
+                         "74018", "74019", "74021")) %>% 
+  filter(is.na(MOD)) %>% 
+  select(cpt_code, DESCRIPTION, WorkRVU = RVU, FacilityPERVU = `PE RVU__1`, MPRVU = RVU__1, ConversionFactor = FACTOR) %>% 
+  mutate(cpt_code = case_when(DESCRIPTION == "Shoulder arthroscopy/surgery" ~ "29826",
+                              DESCRIPTION == "Knee arthroscopy/surgery" ~ "29881",
+                              DESCRIPTION == "Remove tonsils and adenoids" ~ "42820",
+                              DESCRIPTION == "Colonoscopy w/lesion removal" ~ "45385",
+                              DESCRIPTION %in% c("X-ray exam chest 1 view", "X-ray exam chest 2 views", 
+                                                 "X-ray exam chest 3 views", "X-ray exam chest 4+ views") ~ "71020",
+                              DESCRIPTION %in% c("X-ray exam neck spine 2-3 vw", "X-ray exam neck spine 4/5vws") ~ "72040",
+                              DESCRIPTION %in% c("X-ray exam abdomen 1 view", "X-ray exam abdomen 2 views", "X-ray exam abdomen 3+ views") ~ "74000",
+                              DESCRIPTION %in% c("X-ray exam thorac spine 2vws", "X-ray exam thorac spine 3vws", "X-ray exam thorac spine4/>vw") ~ "72070",
+                              TRUE ~ cpt_code),
+         DESCRIPTION = case_when(cpt_code == "71020" ~ "X-ray exam chest",
+                                 cpt_code == "72040" ~ "X-ray exam neck spine",
+                                 cpt_code == "74000" ~ "X-ray exam abdomen",
+                                 cpt_code == "72070" ~ "X-ray exam thorac spine",
+                                 TRUE ~ DESCRIPTION)) %>% 
+  group_by(cpt_code, DESCRIPTION) %>% 
+  summarize(WorkRVU = mean(WorkRVU), FacilityPERVU = mean(FacilityPERVU), MPRVU = mean(MPRVU), ConversionFactor = mean(ConversionFactor))
+
+
+GPCI2018_info <- read_xlsx("RVU18A_files/GPCI2018_copy.xlsx", skip = 2, col_names = TRUE) %>% 
+  rename(locality = X__3) %>% 
+  filter(locality %in% c("NEW HAMPSHIRE", "SOUTHERN MAINE", "METROPOLITAN BOSTON, MA", "REST OF MASSACHUSETTS", "VERMONT")) %>% 
+  select(locality, WorkGPCI = `PW GPCI`, PEGPCI = `PE GPCI`, MPGPCI = `MP GPCI`)
+
+medicare_prices <- primary_data %>% 
+  left_join(RVU18_info, by = "cpt_code") %>% 
+  left_join(GPCI2018_info, by = "locality") %>% 
+  mutate(Medicare = ((WorkRVU * WorkGPCI) + (FacilityPERVU * PEGPCI) + (MPRVU * MPGPCI)) * ConversionFactor) %>% 
+  select(cpt_code, procedure, provider_name, locality, Medicare) %>% 
+  group_by(cpt_code, procedure, provider_name, locality) %>% 
+  summarize(Medicare = mean(Medicare)) %>% 
+  ungroup()
+
+primary_data <- primary_data %>% 
+  left_join(medicare_prices, by = c("cpt_code", "procedure", "provider_name", "locality")) %>% 
+  select(cpt_code, procedure, provider_name, locality, insurer, estimate_of_total_cost, medicare_price = Medicare, precision_of_the_cost_estimate, 
+         typical_patient_complexity, uninsured_discount)
+
+primary_data <- medicare_prices %>% 
+  gather(Medicare, key = insurer, value = estimate_of_total_cost) %>% 
+  bind_rows(primary_data) %>% 
+  mutate(medicare_price = case_when(insurer == "Medicare" ~ estimate_of_total_cost,
+                                    TRUE ~ medicare_price))
 ```
 
 ## Introduction
@@ -220,31 +280,9 @@ The Medicare prices were constructed for the relevant procedures/CPT codes using
 
 <br>
 
-```{r, include=FALSE, out.width="100%"}
+```{r, echo=FALSE, out.width="100%"}
 
-RVU18_info <- read_xlsx("RVU18A_files/PPRRVU18_JAN_mod.xlsx", skip = 9, col_names = TRUE) %>% 
-  rename(cpt_code = HCPCS) %>% 
-  semi_join(primary_data, by = "cpt_code") %>% 
-  filter(is.na(MOD)) %>% 
-  select(cpt_code, DESCRIPTION, WorkRVU = RVU, FacilityPERVU = `PE RVU__1`, MPRVU = RVU__1, ConversionFactor = FACTOR)
-
-GPCI2018_info <- read_xlsx("RVU18A_files/GPCI2018_copy.xlsx", skip = 2, col_names = TRUE) %>% 
-  rename(locality = X__3) %>% 
-  filter(locality %in% c("NEW HAMPSHIRE", "SOUTHERN MAINE", "METROPOLITAN BOSTON, MA", "REST OF MASSACHUSETTS", "VERMONT")) %>% 
-  select(locality, WorkGPCI = `PW GPCI`, PEGPCI = `PE GPCI`, MPGPCI = `MP GPCI`)
-
-medicare_prices <- primary_data %>% 
-  left_join(RVU18_info, by = "cpt_code") %>% 
-  left_join(GPCI2018_info, by = "locality") %>% 
-  mutate(Medicare = ((WorkRVU * WorkGPCI) + (FacilityPERVU * PEGPCI) + (MPRVU * MPGPCI)) * ConversionFactor) %>% 
-  select(cpt_code, procedure, provider_name, locality, Medicare) %>% 
-  gather(Medicare, key = insurer, value = estimate_of_total_cost)
-
-primary_data %>% 
-  bind_rows(medicare_prices) %>% 
-  filter(insurer == "Medicare") %>% 
-  count(cpt_code, procedure, estimate_of_total_cost)
-
+# Top CPT codes from NH Hospital Association
 top_cpt_codes <- read_xlsx("NHA_top_cpt_codes.xlsx", col_names = TRUE) %>% 
   filter(!is.na(`CPT Code`))
 
@@ -261,14 +299,28 @@ top_10_cpt <- top_cpt_codes %>%
   rename(cpt_code = `CPT Code`, description = Description)
 
 top_10_cpt$cpt_code <- as.character(top_10_cpt$cpt_code)
-  
+
+primary_data %>% 
+  semi_join(top_10_cpt, by = "cpt_code") %>% 
+  ggplot(aes(y = estimate_of_total_cost, fill = procedure)) + 
+  geom_boxplot(show.legend = FALSE) +
+  coord_flip() +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  theme(axis.title.y = element_blank(),
+	        axis.text.y = element_blank(),
+	        axis.ticks.y = element_blank()) +
+  facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
+  labs(title = "Figure 2.1: Price Variation for 10 Common Outpatient Procedures (NH)", 
+       subtitle = "Uninsured, Private Insurers, and Medicare")
 ```
+
+<br>
 
 ```{r, echo=FALSE, out.width="100%"}
 
 primary_data %>% 
   semi_join(top_10_cpt, by = "cpt_code") %>% 
-  filter(!insurer %in% c("Uninsured", "Other")) %>% 
+  filter(!insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
   ggplot(aes(y = estimate_of_total_cost, fill = procedure)) + 
   geom_boxplot(show.legend = FALSE) +
   coord_flip() +
@@ -281,7 +333,7 @@ primary_data %>%
        subtitle = "For the Top Three Private Insurers (Anthem, CIGNA, & Harvard Pilgrim)")
 ```
 
-
+<br>
 
 I also use [2015 outpatient charge data](https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Medicare-Provider-Charge-Data/Outpatient2015.html) from the Center for Medicaid and Medicare Services (CMS) to determine what kind of outpatient procedures tend to generate the greatest expenditures (as a result of both quality and price) as shown in Figure 2. In doing so, I assume that these outpatient patient procedures are at least somewhat representative of those required among non-Medicare patients.
 ```{r, echo=FALSE, out.width="100%"}
@@ -320,19 +372,19 @@ For the exact same service, hospitals are able to charge different payers vastly
 For hospitals which had a price range between insurers >$100 for ankle x-rays:
 ```{r, echo=FALSE, out.width="100%"}
 primary_data %>% 
-  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("None", "Other")) %>% 
+  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
   count(provider_name, insurer) %>% 
   count(provider_name) %>% 
   filter(nn == 3) %>%
   left_join(primary_data, by = "provider_name") %>% 
-  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("None", "Other")) %>%
+  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>%
   group_by(provider_name) %>% 
   mutate(range = max(estimate_of_total_cost) - min(estimate_of_total_cost)) %>% 
   filter(range > 100) %>% 
   ggplot(aes(x = fct_reorder(provider_name, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) +
   geom_col(position = "dodge", width = 0.5) +
-  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
-                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"), name = "Insurer") +
+  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080"), name = "Insurer") +
   scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
   labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: X-Ray - Ankle (outpatient)") + 
   theme(axis.title.y = element_blank()) +
@@ -355,8 +407,8 @@ The following boxplot depicts the various distributions of estimated prices for 
 primary_data %>% 
   ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
   geom_boxplot(show.legend = FALSE) +
-  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
-                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#D3D3D3")) +
+  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080")) +
   coord_flip() +
   scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
   scale_x_discrete(name = "Insurer") +
@@ -432,32 +484,28 @@ plotly_nh_hospitals
 ## Methodology
 The goal of this analysis is to determine whether there is a statistical difference between the prices hospitals charge Anthem, Harvard Pilgrim, and CIGNA in New Hampshire. That is, for the same service at the same hospital, is one insurer consistently paying a higher amount than the other two?
 
-I create dummy variables for each of the insurers and a new variable ("percent_of_anthem") which is the price as a percentage of the price Anthem pays for the same procedure at the same hospital. Data on the price Anthem pays certain hospitals for certain procedures is unavailable either because Anthem does not have a contract with that hospital or price information is simply not available for that particular procedure. This leads 1360 observations of 4511 total observations to be dropped from the analysis, leaving 3151 observations (unique hospital-insurer-procedure combinations) remaining. With the remaining data, I regress the "percent_of_anthem" variable on each insurer dummy variable (with the Anthem dummy being excluded) and include procedure fixed effects and hospital fixed effects to isolate within-hospital variation of prices and therefore plausibly control for quality and costs.
+I create dummy variables for each of the insurers and Medicare and a new variable ("percent_medicare") which is the price as a percentage of what Medicare pays for the same procedure at the same hospital. The price Medicare pays for Blood Tests is $0 so I drop those observations from my data (from 6,329 to 6,002). With the remaining data, I regress the "percent_medicare" variable on each insurer dummy variable (with the Medicare dummy being excluded) and include procedure fixed effects and hospital fixed effects to isolate within-hospital variation of prices and therefore plausibly control for quality and costs.
 
-The results are listed below and show that CIGNA pays on average 24.594% *more* than Anthem and Harvard Pilgrim pays on average 12.936% *more* than Anthem.
+The results are listed below and show that Anthem pays on average 162% of Medicare prices, Harvard Pilgrim pays 282%, and CIGNA pays 396%.
 
 ```{r, echo=FALSE, message=FALSE}
 
 library(foreign)
 
-anthem_prices <- primary_data %>% 
-  filter(insurer == "Anthem NH") %>% 
-  mutate(anthem_price = estimate_of_total_cost) %>% 
-  select(cpt_code, procedure, provider_name, anthem_price)
-
 primary_data <- primary_data %>% 
-  left_join(anthem_prices, by = c("cpt_code", "procedure", "provider_name")) %>% 
-  mutate(percent_of_anthem = (estimate_of_total_cost/anthem_price)*100,
+  mutate(percent_medicare = (estimate_of_total_cost/medicare_price)*100,
          Anthem_NH = case_when(insurer == "Anthem NH" ~ 1,
                                insurer != "Anthem NH" ~ 0),
          Harvard_Pilgrim_HC = case_when(insurer == "Harvard Pilgrim HC" ~ 1,
                                insurer != "Harvard Pilgrim HC" ~ 0),
          CIGNA = case_when(insurer == "CIGNA" ~ 1,
-                               insurer != "CIGNA" ~ 0))
+                               insurer != "CIGNA" ~ 0),
+         Medicare = case_when(insurer == "Medicare" ~ 1,
+                               insurer != "Medicare" ~ 0))
 
 lm_primary_data <-  
-  lm(formula = percent_of_anthem ~ CIGNA + Harvard_Pilgrim_HC + factor(provider_name) + factor(procedure), 
-     data = subset(primary_data, !insurer %in% c("None", "Other")))
+  lm(data = subset(primary_data, !medicare_price == 0, !insurer %in% c("Uninsured", "Other")),
+     formula = percent_medicare ~ Anthem_NH + CIGNA + Harvard_Pilgrim_HC + factor(provider_name) + factor(procedure))
 
 library(stargazer)
 
