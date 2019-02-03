@@ -128,7 +128,7 @@ primary_data <- primary_data %>%
                                             is.na(what_you_will_pay) ~ estimate_of_total_cost)) %>% 
   rename(provider_name = provider_name_compare_selected)
 
-primary_data$insurer <- str_replace(primary_data$insurer, "Uninsured", "Uninsured")
+primary_data$insurer <- str_replace_all(primary_data$insurer, "None", "Uninsured")
 
 primary_data$provider_name <- str_remove(primary_data$provider_name, "Compare ")
 
@@ -164,7 +164,6 @@ RVU18_info <- read_xlsx("RVU18A_files/PPRRVU18_JAN_mod.xlsx", skip = 9, col_name
   filter(cpt_code %in% c(primary_data$cpt_code, 
                          "29806", "29807", "29819", "29820", "29821", "29822", "29823", "29824", "29825",
                          "29873", "29874", "29875", "29876", "29877", "29879", "29880", "29881",
-                         "42821",
                          "45384",
                          "71045", "71046", "71047", "71048",
                          "72050",
@@ -174,7 +173,6 @@ RVU18_info <- read_xlsx("RVU18A_files/PPRRVU18_JAN_mod.xlsx", skip = 9, col_name
   select(cpt_code, DESCRIPTION, WorkRVU = RVU, FacilityPERVU = `PE RVU__1`, MPRVU = RVU__1, ConversionFactor = FACTOR) %>% 
   mutate(cpt_code = case_when(DESCRIPTION == "Shoulder arthroscopy/surgery" ~ "29826",
                               DESCRIPTION == "Knee arthroscopy/surgery" ~ "29881",
-                              DESCRIPTION == "Remove tonsils and adenoids" ~ "42820",
                               DESCRIPTION == "Colonoscopy w/lesion removal" ~ "45385",
                               DESCRIPTION %in% c("X-ray exam chest 1 view", "X-ray exam chest 2 views", 
                                                  "X-ray exam chest 3 views", "X-ray exam chest 4+ views") ~ "71020",
@@ -217,14 +215,16 @@ primary_data <- medicare_prices %>%
                                     TRUE ~ medicare_price))
 ```
 
-## Introduction
 ### Abstract
 This thesis evaluates how the market power of insurers and hospitals in geographical sub-markets determines the prices insurers and hospitals negotiate for hospital care. I will examine to what extent the variation in prices is explained by variation in costs and quality versus variation in market power, which may play an important role in bilateral price negotiations for services. Using carrier-hospital specific prices for outpatient medical procedures from New Hampshire's [NH HealthCost website](https://nhhealthcost.nh.gov/costs/select), I compare the estimated prices for the same services across the state, both between hospitals and within hospitals. The methodology for the collection of this data can be found [here](https://nhhealthcost.nh.gov/methodology-health-costs-consumers).
 
+<br>
+
+## Introduction
 ### Motivation
 The U.S.'s expenditure on health care has grown rapidly over the last few decades and has outpaced that of many peer countries without significant returns to quality (e.g. OECD 2017; Etehad and Kim 2017; Reinhardt et al., 2004).  A substantial body of research has determined that the biggest driver behind the U.S. health care expenditure is not greater utilization or social spending but quite simply higher prices (e.g. Anderson et al., 2003; Papanicolas et al., 2018). Given that the $3.3 trillion spent on health care annually (17.9% of GDP) (Centers for Disease Control and Prevention 2017) erodes the budgets of families and individuals, state and local governments, and the federal government, understanding the sources of variation in these prices is of tremendous import. 
 
-I choose to focus this paper on hospital prices because hospital care constitutes the largest component of U.S. health care spending at 32.4% ($1.0825 trillion) of national health expenditure (Centers for Disease Control and Prevention 2017) as shown in Figure 1, and a vast body of research has identified wide variation in private insurance reimbursements to hospitals for the same services and/or diagnoses ***citations***. Cooper et al., 2015 finds that for the privately insured, only about half of the variation in expenditure is due to the quantity of care delivered while half is purely driven by price variation while 95% of the variation in expenditure for public programs like Medicare is explained by variation in the quantity of care delivered. 
+I choose to focus this paper on hospital prices because hospital care constitutes the largest component of U.S. health care spending at 32.4% ($1.0825 trillion) of national health expenditure (Centers for Disease Control and Prevention 2017) as shown in Figure 1, and a vast body of research has identified wide variation in private insurance reimbursements to hospitals for the same services and/or diagnoses ***citations***. Cooper et al., 2015 finds that for the privately insured, only about half of the variation in expenditure is due to the quantity of care delivered while half is purely driven by price variation; for public programs like Medicare, 95% of the variation in expenditure is explained by variation in the quantity of care delivered. 
 ```{r, echo=FALSE, out.width="100%"}
 
 # Creating a graphic to show the growth in U.S. health care spending over time and specifically the growth in hospital care spending
@@ -269,163 +269,64 @@ Given that the largest portion of Americans (49%) receive health care coverage f
 
 This paper is most closely related to Cooper et al. 2015, but differs in several key respects: first, this analysis will focus a set of price data for hospital care in New Hampshire, while Cooper et al. 2015 relies on HCCI data which is a national cross-section sample and relies on claims data from Aetna, Humana, and United Health. While the HCCI data is a rich set of data that is perhaps nationally representative in a broad sense, none of these insurers are major players in the New Hampshire market; secondly, this paper will devote more attention to insurers' relative market power as well as the effects on the uninsured who have minimal market power; lastly, I also include an analysis of how the share of Medicare patients at a given hospital affects the prices that hospital negotiates with private insurers.
 
-### Price Variation in the New Hampshire Market
-The New Hampshire Hospital Association provides a list of the [top outpatient CPT codes](https://www.nhha.org/images/Data/Outpatient-CPT-List-2016.pdf) in 2016 at hospitals throughout the state, and the average costs associated with each. Current Procedural Terminology (CPT) codes provide a uniform language for coding medical procedures and services and are published and maintained by the American Medical Association (AMA). The New Hampshire Hospital Association lists the 82 most common outpatient CPT codes (out of several thousand). To provide a picture of the extent of variation in the prices for these services, I further narrow this list down to 10 of the most expensive services for which I can obtain data on private insurance payments and prices for uninsured individuals from NH HealthCost and Medicare payments from [CMS](https://www.cms.gov/Medicare/Medicare-Fee-for-Service-Payment/PhysicianFeeSched/PFS-Relative-Value-Files-Items/RVU18A.html?DLPage=1&DLEntries=10&DLSort=0&DLSortDir=descending). I present the resulting boxplot distributions in Figure 2.1, which includes payments by the uninsured, private insurers, and Medicare, and Figure 2.2, which only shows the payments made by private insurers. All price data presented reflect 2018 prices.
+#### Theoretical Framework
+In standard micro-economic theory, one learns that prices reflect supply and demand, where the supply curve is largely determined by each firm's costs of production and market power and the demand curve determined by consumer preferences and budget constraints. Market power is largely a function of the number of other firms in the market, but a firm may also generate market power for itself through distiguishing it's product from others, most commonly in the form of quality. When it's product differs from others in the market, a firm can extract a certain mark-up from consumers who have a preference for that difference, and consumers often have a preference for higher quality. Thus, in a standard competitive market, one would expect prices to reflect production costs and product quality.
 
-The Medicare prices were constructed for the relevant procedures/CPT codes using data from the 2018 Physician Fee Schedule (PFS) Relative Value Files and the following formula: 
+The market for health services (often provided through hospitals) is unique in that there are two components of demand: individuals and payers. Even this is somewhat of an oversimplification in the US market because many individuals are privately insured through their employer which contracts with a private insurer/payer. However, for the most part, insurers cover much of the costs of care ***citation*** and negotiate contracts with providers if they are private (Medicare and Medicaid set their prices at a regional level). This gives private payers some form of monopsony power as there are often only a few of them present in each market, and they can choose whether or not to include each provider in their network which affects the prices individuals face for care. 
 
-<br>
+Thus, payers and providers engage in bilateral negotiations where both are price setters rather than price takers. I assume the following: both the provider and the payer want to maximize their profit margins per patient, even if the provider is a non-profit (Horwitz 2005), and the number of patients they serve. Providers want to receive higher prices for their services but also to be included in payers' networks, as patients face lower out-of-pocket costs when going to providers in network. Payers want to pay lower prices for providers’ services to minimize their costs but also want to attract enrollees by including convenient providers in their network. Thus, this is the bargaining environment in which bilateral hospital-insurer contracts are negotiated and the work below examines the impact on prices.
 
-2018FacilityPricingAmount = [(WorkRVU x WorkGPCI) + (FacilityPERVU x PEGPCI) + (MPRVU x MPGPCI)] x ConversionFactor 
 
-<br>
-
-```{r, echo=FALSE, out.width="100%"}
-
-# Top CPT codes from NH Hospital Association
-top_cpt_codes <- read_xlsx("NHA_top_cpt_codes.xlsx", col_names = TRUE) %>% 
-  filter(!is.na(`CPT Code`))
-
-top_10_cpt <- top_cpt_codes %>% 
-  gather(-`CPT Code`, -Description, key = hospital, value = avg_price) %>% 
-  filter(!is.na(avg_price)) %>% 
-  group_by(`CPT Code`, Description) %>% 
-  summarize(avg_price_nh = mean(avg_price)) %>% 
-  arrange(desc(avg_price_nh)) %>% 
-  filter(Description %in% c("ARTHROSCOPY SHOULDER DECOM", "TONSILLECTOMY&ADNOIDECTOMY:UNDER AGE 12", "UPPER GI ENDOSCOPY, BIOPSY", 
-                            "DIAGNOSTIC COLONOSCOPY", "CT BRAIN ‐ W/OUT CONTRAST", "PELVIC ULTRASOUND ‐ NON OBGYN ( NON PREGNANCY)", 
-                            "VAGINAL ULTRASOUND ‐ NON OBGYN (NON PREGNANCY)", "ED VISIT‐ PROBLEM(S) ARE OF MODERATE SEVERITY", 
-                            "SPINE X‐RAY (LUMBAR PA‐LAT)", "ED VISIT‐ PROBLEM(S) ARE OF LOW TO MODERATE SEVERITY")) %>% 
-  rename(cpt_code = `CPT Code`, description = Description)
-
-top_10_cpt$cpt_code <- as.character(top_10_cpt$cpt_code)
-
-primary_data %>% 
-  semi_join(top_10_cpt, by = "cpt_code") %>% 
-  ggplot(aes(y = estimate_of_total_cost, fill = procedure)) + 
-  geom_boxplot(show.legend = FALSE) +
-  coord_flip() +
-  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
-  theme(axis.title.y = element_blank(),
-	        axis.text.y = element_blank(),
-	        axis.ticks.y = element_blank()) +
-  facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
-  labs(title = "Figure 2.1: Price Variation for 10 Common Outpatient Procedures (NH)", 
-       subtitle = "Uninsured, Private Insurers, and Medicare")
-```
-
-<br>
-
-```{r, echo=FALSE, out.width="100%"}
-
-primary_data %>% 
-  semi_join(top_10_cpt, by = "cpt_code") %>% 
-  filter(!insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
-  ggplot(aes(y = estimate_of_total_cost, fill = procedure)) + 
-  geom_boxplot(show.legend = FALSE) +
-  coord_flip() +
-  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
-  theme(axis.title.y = element_blank(),
-	        axis.text.y = element_blank(),
-	        axis.ticks.y = element_blank()) +
-  facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
-  labs(title = "Figure 2.2: Price Variation for 10 Common Outpatient Procedures (NH)", 
-       subtitle = "For the Top Three Private Insurers (Anthem, CIGNA, & Harvard Pilgrim)")
-```
-
-<br>
-
-I also use [2015 outpatient charge data](https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Medicare-Provider-Charge-Data/Outpatient2015.html) from the Center for Medicaid and Medicare Services (CMS) to determine what kind of outpatient procedures tend to generate the greatest expenditures (as a result of both quality and price) as shown in Figure 2. In doing so, I assume that these outpatient patient procedures are at least somewhat representative of those required among non-Medicare patients.
-```{r, echo=FALSE, out.width="100%"}
-
-nh_medicare_2015_outpatient <- read_xlsx("Medicare_Charge_Outpatient_APC28_CY2015_Provider.xlsx", skip = 6, col_names = TRUE) %>% 
- filter(`Provider\r\nState` == "NH")
-
-primary_data <- nh_medicare_2015_outpatient %>% 
-  count(`Provider ID`, `Provider Name`) %>% 
-  arrange(desc(n)) %>% 
-  mutate(provider_id = `Provider ID`, provider_name = `Provider Name`) %>% 
-  select(provider_id, provider_name) %>% 
-  full_join(primary_data, by = "provider_name")
-
-# Narrowing down top 10 outpatient procedures
-top_10_APC <- nh_medicare_2015_outpatient %>%
-  mutate(hospital_revenue = `Outpatient\r\nServices`*`Average\r\nTotal Payments`) %>% 
-  group_by(APC) %>% 
-  summarize(Revenue = sum(hospital_revenue)) %>% 
-  arrange(desc(Revenue)) %>% 
-  slice(1:10)
-
-kable(top_10_APC, col.names = c("Ambulatory Payment Classification (APC)", "Total 2015 Revenue (in $)"), 
-      caption = "Figure 3: Top 10 APCs in Terms of Revenue",
-      format.args = list(big.mark = ","))
-```
-
-<br>
-<br>
-<br>
-
-For the exact same service, hospitals are able to charge different payers vastly different amounts. Below are some visual examples from the data that illustrate this variation between the three major private payers in New Hampshire (Anthem - NH, CIGNA, and Harvard Pilgrim Health Care) for the exact same service at the exact same hospital. 
-
-<br>
-
-For hospitals which had a price range between insurers >$100 for ankle x-rays:
-```{r, echo=FALSE, out.width="100%"}
-primary_data %>% 
-  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
-  count(provider_name, insurer) %>% 
-  count(provider_name) %>% 
-  filter(nn == 3) %>%
-  left_join(primary_data, by = "provider_name") %>% 
-  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>%
-  group_by(provider_name) %>% 
-  mutate(range = max(estimate_of_total_cost) - min(estimate_of_total_cost)) %>% 
-  filter(range > 100) %>% 
-  ggplot(aes(x = fct_reorder(provider_name, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) +
-  geom_col(position = "dodge", width = 0.5) +
-  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
-                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080"), name = "Insurer") +
-  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
-  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: X-Ray - Ankle (outpatient)") + 
-  theme(axis.title.y = element_blank()) +
-  coord_flip()
-```
-
-<br>
-
-### Theoretical Framework
-Both the hospital and the insurer are often interested in maximizing their profit margins per patient, even if the hospital is a non-profit (Horwitz 2005), and maximizing the number of patients they serve. Hospitals want to receive higher prices for their services but also to be included in insurers' networks, as patients facing lower out-of-pocket costs when going to hospitals in network may be more likely to go to these hospitals. Insurers want to pay lower prices for hospitals’ services to minimize their costs but also want to attract enrollees by including convenient hospitals in their network. Thus, this is the bargaining environment in which bilateral hospital-insurer contracts are negotiated and the work below examines the impact on prices.
-
-<br>
-
-## Data Sources
-### Raw data from NH HealthCost
-The primary source of data on hospital costs comes from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) which provides insurer-hospital specific estimations of total costs (reimbursements) for a long list of outpatient services and procedures. I copy and pasted this information for particular medical procedures and services into Excel spreadsheets (one for each medical procedure/service). At first, I attempted to mimic the 8 selected services analyzed in [Cooper et al. (2018)](https://healthcarepricingproject.org/sites/default/files/20180507_variationmanuscript_0.pdf) (Inpatient, Hip Replacement, Knee Replacement, Cesarean Section, Vaginal Delivery, PTCA, Colonoscopy, and Lower Limb MRI), but the website only had data for colonoscopies and MRIs. I therefore chose to first look at radiology services only as these types of services (CT scans, MRIs, X-rays) should be reasonably assumed to have constant costs and quality within the same hospital. This allowed me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. 
-
-The following boxplot depicts the various distributions of estimated prices for each private insurer.
+### Background on the New Hampshire Market
+#### Health Insurance Coverage
+New Hampshire is a small state (8,953 sqaure miles) with a population of 1.343 million (90.5% white) and median household income of $68,485 (Census Bureau 2017). The following pie charts depict the insurance status of New Hampshire residents in 2016 as well as the market share of major private insurers. According to the New Hampshire Insurance Department, a total of 543,900 members were enrolled in commercial market plans in 2017 in the state, and 81% received coverage through employer-sponsored insurance plans (11.0% Individual Market, 7.7% NH PAP, 12.6% Small Group, 19.8% Large Group Fully Insured, and 48.9% Large Group Self Insured). 
 ```{r, echo=FALSE}
-primary_data %>% 
-  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
-  geom_boxplot(show.legend = FALSE) +
-  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
-                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080")) +
-  coord_flip() +
-  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
-  scale_x_discrete(name = "Insurer") +
-  labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "(27 procedures)")
+
+# Creating dataframe on insurance status in NH from NH Insurance department, first creating columns
+insurance_status <- c("Employer Coverage Only", "Individual Coverage Only", "Medicare Coverage Only", "Medicaid Coverage Only", "Uninsured", 
+                      "Other Coverage Combinations", "Dual Medicare/Medicaid Coverage", "Tricare & VA Coverage")
+percent_in <- c(56, 6, 14, 10, 6, 6, 1, 1)
+
+# Putting together as dataframe
+insurance_status_nh <- data.frame(insurance_status, percent_in)
+
+# Creating dataframe on private insurance in NH
+insurer <- c("Anthem/Matthew Thorton", "Harvard Pilgrim", "CIGNA", "Other")
+percent_enrolled <- c(39, 27, 20, 14)
+
+# Putting together as dataframe
+private_insurance <- data.frame(insurer, percent_enrolled)
 ```
 
-### Insurance Coverage in New Hampshire
-The pie charts below are taken from the [NH Insurance Department 2017 Final Report of Health Care Premium and Claim Cost Drivers](https://www.nh.gov/insurance/reports/documents/2018-nhid-annual-hearing-final-report.pdf) (published November 2018) and illustrate relevant information about the insurance market in New Hampshire.
+```{r, echo=FALSE, out.width=c("50%", "50%")}
+insurance_status_nh %>% 
+  ggplot(aes(x = "", y = percent_in, fill = fct_reorder(insurance_status, percent_in))) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  scale_fill_discrete(name = "Insurance Status") +
+  theme(axis.title.x  = element_blank(),
+	        axis.text.x = element_blank(),
+	        axis.ticks.x = element_blank()) +
+  geom_text(aes(label = paste0(percent_in, "%")), position = position_stack(vjust = 0.5), color = "white") +
+  labs(title = "New Hampshire Residents by Health Insurance Status in 2017")
 
-```{r, echo=FALSE, out.width="100%"}
-knitr::include_graphics("Images/statewide_coverage_type.png")
-knitr::include_graphics("Images/employee_coverage_by_insurer.png")
+private_insurance %>% 
+  ggplot(aes(x = "", y = percent_enrolled, fill = fct_reorder(insurer, percent_enrolled))) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  theme(axis.title.x  = element_blank(),
+	        axis.text.x = element_blank(),
+	        axis.ticks.x = element_blank()) +
+  scale_fill_manual(name = "Private Insurer", values = c("CIGNA" = "#99CC00", "Anthem/Matthew Thorton" = "#336699", 
+                               "Harvard Pilgrim" = "#CC0000", "Other" = "#C0C0C0")) +
+  geom_text(aes(label = paste0(percent_enrolled, "%")), position = position_stack(vjust = 0.5), color = "white") +
+  labs(title = "Distribution by Insurer for NH Commercial Market in 2017")
 ```
 
 
-### Location of New Hampshire Hospitals (from Google Maps data):
+New Hampshire has a total of 31 hospitals and 3,503 beds (New Hampshire Hospital Association 2018). According to the New Hampshire Hospital Association, 13 of these hospitals with 2,704 beds total are Prospective Payment Systems (PPS) Hospitals, which take prospective payments from Medicare; 13 hospitals with 301 beds total are Critical Access Hospitals (CAH), which serve rural populations and therefore are eligible to receive certain benefits from Medicare such as cost-based reimbursement for Medicare services (Rural Health Information Hub 2018); 5 hospitals with 498 beds total are Specialty Hospitals, which provide a specialized category of services (such as children’s hospitals, orthopedic hospitals, cancer hospitals, etc.). All of these hospitals can serve non-Medicare patients as well.
 
+##### Location of New Hampshire Hospitals (from Google Maps data):
 ```{r, echo=FALSE, out.width="100%", message=FALSE, warning=FALSE}
 
 library(ggplot2)
@@ -471,14 +372,178 @@ plotly_nh_hospitals
 
 ```
 
-<br>
+#### Price Variation in the New Hampshire Market
+I first want to motivate this paper by demonstrating that large price variation exists in the New Hampshire market for hospital care and that little of the variation is explained by costs and quality.
 
-### CMS Data on Provider ID and Medicare Reimbursement:
+The New Hampshire Hospital Association provides a list of the [top outpatient CPT codes](https://www.nhha.org/images/Data/Outpatient-CPT-List-2016.pdf) in 2016 at hospitals throughout the state, and the average costs associated with each. Current Procedural Terminology (CPT) codes provide a uniform language for coding medical procedures and services and are published and maintained by the American Medical Association (AMA). The New Hampshire Hospital Association lists the 82 most common outpatient CPT codes (out of several thousand). To provide a picture of the extent of variation in the prices for these services, I further narrow this list down to 10 of the most expensive services for which I can obtain data on private insurance payments and prices for uninsured individuals from NH HealthCost and Medicare payments from [CMS](https://www.cms.gov/Medicare/Medicare-Fee-for-Service-Payment/PhysicianFeeSched/PFS-Relative-Value-Files-Items/RVU18A.html?DLPage=1&DLEntries=10&DLSort=0&DLSortDir=descending).
+
+The Medicare prices were constructed for the relevant procedures/CPT codes using data from the 2018 Physician Fee Schedule (PFS) Relative Value Files and the following formula:
+
+**2018FacilityPricingAmount = [(WorkRVU x WorkGPCI) + (FacilityPERVU x PEGPCI) + (MPRVU x MPGPCI)] x ConversionFactor**
+
+The 2018 Medicare Facility Pricing Amount is constructed for each CPT code (each procedure) at each hospital/facility from the 2018 Relative Value Files available through CMS. I then combine these Medicare prices with those available through NH Health Cost. For ten common procedures, I present the resulting boxplot distributions in Figure 2.1, which includes payments by the uninsured, private insurers, and Medicare, and in Figure 2.2, which only shows the payments made by private insurers. All price data presented reflect 2018 prices.
+
 ```{r, echo=FALSE}
+
+# Top CPT codes from NH Hospital Association
+top_cpt_codes <- read_xlsx("NHA_top_cpt_codes.xlsx", col_names = TRUE) %>% 
+  filter(!is.na(`CPT Code`))
+
+top_10_cpt <- top_cpt_codes %>% 
+  gather(-`CPT Code`, -Description, key = hospital, value = avg_price) %>% 
+  filter(!is.na(avg_price)) %>% 
+  group_by(`CPT Code`, Description) %>% 
+  summarize(avg_price_nh = mean(avg_price)) %>% 
+  arrange(desc(avg_price_nh)) %>% 
+  filter(Description %in% c("ARTHROSCOPY SHOULDER DECOM", "TONSILLECTOMY&ADNOIDECTOMY:UNDER AGE 12", "UPPER GI ENDOSCOPY, BIOPSY", 
+                            "DIAGNOSTIC COLONOSCOPY", "CT BRAIN ‐ W/OUT CONTRAST", "PELVIC ULTRASOUND ‐ NON OBGYN ( NON PREGNANCY)", 
+                            "VAGINAL ULTRASOUND ‐ NON OBGYN (NON PREGNANCY)", "ED VISIT‐ PROBLEM(S) ARE OF MODERATE SEVERITY", 
+                            "SPINE X‐RAY (LUMBAR PA‐LAT)", "ED VISIT‐ PROBLEM(S) ARE OF LOW TO MODERATE SEVERITY")) %>% 
+  rename(cpt_code = `CPT Code`, description = Description)
+
+top_10_cpt$cpt_code <- as.character(top_10_cpt$cpt_code)
 
 ```
 
+<div class = "row">
+  
+<div class = "col-md-6">
+```{r, message=FALSE, echo=FALSE}
+primary_data %>% 
+  semi_join(top_10_cpt, by = "cpt_code") %>% 
+  ggplot(aes(y = estimate_of_total_cost, fill = procedure)) + 
+  geom_boxplot(show.legend = FALSE) +
+  coord_flip() +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  theme(axis.title.y = element_blank(),
+	        axis.text.y = element_blank(),
+	        axis.ticks.y = element_blank()) +
+  facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
+  labs(title = "Figure 2.1: Price Variation for 10 Common Outpatient Procedures (NH)", 
+       subtitle = "Uninsured, Private Insurers, and Medicare")
+```
+</div>
+  
+  
+<div class = "col-md-6">
+```{r, message=FALSE, echo=FALSE}
+primary_data %>% 
+  semi_join(top_10_cpt, by = "cpt_code") %>% 
+  filter(!insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
+  ggplot(aes(y = estimate_of_total_cost, fill = procedure)) + 
+  geom_boxplot(show.legend = FALSE) +
+  coord_flip() +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  theme(axis.title.y = element_blank(),
+	        axis.text.y = element_blank(),
+	        axis.ticks.y = element_blank()) +
+  facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
+  labs(title = "Figure 2.2: Price Variation for 10 Common Outpatient Procedures (NH)", 
+       subtitle = "For the Top Three Private Insurers (Anthem, CIGNA, & Harvard Pilgrim)")
+```
+</div>
+</div>
+
 <br>
+
+```{r, echo=FALSE, out.width="100%"}
+#I also use [2015 outpatient charge data](https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Medicare-Provider-Charge-Data/Outpatient2015.html) from the Center for Medicaid and Medicare Services (CMS) to determine what kind of outpatient procedures tend to generate the greatest expenditures (as a result of both quality and price) as shown in Figure 2. In doing so, I assume that these outpatient patient procedures are at least somewhat representative of those required among non-Medicare patients.
+
+#nh_medicare_2015_outpatient <- read_xlsx("Medicare_Charge_Outpatient_APC28_CY2015_Provider.xlsx", skip = 6, col_names = TRUE) %>% 
+ #filter(`Provider\r\nState` == "NH")
+
+#primary_data <- nh_medicare_2015_outpatient %>% 
+  #count(`Provider ID`, `Provider Name`) %>% 
+  #arrange(desc(n)) %>% 
+  #mutate(provider_id = `Provider ID`, provider_name = `Provider Name`) %>% 
+  #select(provider_id, provider_name) %>% 
+  #full_join(primary_data, by = "provider_name")
+
+# Narrowing down top 10 outpatient procedures
+#top_10_APC <- nh_medicare_2015_outpatient %>%
+  #mutate(hospital_revenue = `Outpatient\r\nServices`*`Average\r\nTotal Payments`) %>% 
+  #group_by(APC) %>% 
+  #summarize(Revenue = sum(hospital_revenue)) %>% 
+  #arrange(desc(Revenue)) %>% 
+  #slice(1:10)
+
+#kable(top_10_APC, col.names = c("Ambulatory Payment Classification (APC)", "Total 2015 Revenue (in $)"), 
+      #caption = "Figure 3: Top 10 APCs in Terms of Revenue",
+      #format.args = list(big.mark = ","))
+```
+
+<br>
+<br>
+<br>
+
+For the exact same service, hospitals are able to charge different payers vastly different amounts. Below are some visual examples from the data that illustrate this variation between the three major private payers in New Hampshire (Anthem - NH, CIGNA, and Harvard Pilgrim Health Care) for the exact same service at the exact same hospital. 
+
+<br>
+
+```{r, echo=FALSE, out.width=c("50%", "50%")}
+primary_data %>% 
+  filter(procedure == "Ultrasound - Transvaginal (non-maternity)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
+  count(provider_name, insurer) %>% 
+  count(provider_name) %>% 
+  filter(n == 3) %>%
+  left_join(primary_data, by = "provider_name") %>% 
+  filter(procedure == "Ultrasound - Transvaginal (non-maternity)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>%
+  group_by(provider_name) %>% 
+  mutate(range = max(estimate_of_total_cost) - min(estimate_of_total_cost)) %>% 
+  filter(range > 150) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = fct_reorder(provider_name, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) +
+  geom_col(position = "dodge", width = 0.5, show.legend = FALSE) +
+  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080"), name = "Insurer") +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: Ultrasound - Transvaginal (non-maternity)") + 
+  theme(axis.title.y = element_blank()) +
+  coord_flip()
+
+primary_data %>% 
+  filter(procedure == "X-Ray - Spine (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
+  count(provider_name, insurer) %>% 
+  count(provider_name) %>% 
+  filter(n == 3) %>%
+  left_join(primary_data, by = "provider_name") %>% 
+  filter(procedure == "X-Ray - Spine (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>%
+  group_by(provider_name) %>% 
+  mutate(range = max(estimate_of_total_cost) - min(estimate_of_total_cost)) %>% 
+  filter(range > 100) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = fct_reorder(provider_name, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) +
+  geom_col(position = "dodge", width = 0.5) +
+  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080"), name = "Insurer") +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: X-Ray - Spine (outpatient)") + 
+  theme(axis.title.y = element_blank()) +
+  coord_flip()
+```
+
+<br>
+
+## Data Sources
+### Raw data from NH HealthCost
+The primary source of data on hospital costs comes from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) which provides insurer-hospital specific estimations of total costs (reimbursements) for a long list of outpatient services and procedures. I copy and pasted this information for particular medical procedures and services into Excel spreadsheets (one for each medical procedure/service). At first, I attempted to mimic the 8 selected services analyzed in [Cooper et al. (2018)](https://healthcarepricingproject.org/sites/default/files/20180507_variationmanuscript_0.pdf) (Inpatient, Hip Replacement, Knee Replacement, Cesarean Section, Vaginal Delivery, PTCA, Colonoscopy, and Lower Limb MRI), but the website only had data for colonoscopies and MRIs. I therefore chose to first look at radiology services only as these types of services (CT scans, MRIs, X-rays) should be reasonably assumed to have constant costs and quality within the same hospital. This allowed me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. 
+
+The following boxplot depicts the various distributions of estimated prices for each private insurer.
+```{r, echo=FALSE}
+primary_data %>% 
+  filter(!cpt_code %in% c("29826", "29881", "42820", "43239", "45378", "45380", "45385", "51798", "85027", "99282", "99283")) %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080")) +
+  coord_flip() +
+  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
+  scale_x_discrete(name = "Insurer") +
+  labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "Radiology services")
+```
+
+<br>
+
 
 # Statistical Analysis
 ## Methodology
