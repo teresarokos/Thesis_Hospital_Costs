@@ -21,18 +21,17 @@ library(maps)
 library(mapdata)
 library(plotly)
 library(foreign)
+library(purrr)
 ```
 
 ```{r, include=FALSE}
-
-file_names <- dir_ls("NH_HealthCost_data/")
 
 merge_sheets <- function(x) {
   bind_rows(
     x %>%
       excel_sheets() %>%
       set_names() %>% 
-      map(read_excel, path = x), .id = "Insurer")
+      purrr::map(read_excel, path = x), .id = "Insurer")
 }
 
 primary_data <- bind_rows(
@@ -128,19 +127,12 @@ primary_data <- bind_rows(
 primary_data <- clean_names(primary_data, case = "snake")
 
 primary_data <- primary_data %>% 
+  rename(provider_name = provider_name_compare_selected) %>% 
   mutate(estimate_of_total_cost = case_when(is.na(estimate_of_total_cost) ~ estimate_of_procedure_cost,
                                             !is.na(estimate_of_total_cost) ~ estimate_of_total_cost),
-         estimate_of_total_cost = case_when(!is.na(what_you_will_pay) ~ what_you_will_pay,
-                                            is.na(what_you_will_pay) ~ estimate_of_total_cost)) %>% 
-  rename(provider_name = provider_name_compare_selected)
-
-primary_data$insurer <- str_replace_all(primary_data$insurer, "None", "Uninsured")
-
-primary_data$provider_name <- str_remove(primary_data$provider_name, "Compare ")
-
-primary_data <- primary_data %>% 
-  separate(provider_name,sep = " ", into = c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", 
-                                   "eleven")) %>%
+         insurer = str_replace_all(insurer, "None", "Uninsured"),
+         provider_name = str_remove(provider_name, "Compare ")) %>% 
+  separate(provider_name, sep = " ", into = c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven")) %>%
   select(-six, -eight, -ten) %>% 
   mutate(two = case_when(!is.na(four) ~ two),
          three = case_when(!(!is.na(two) & is.na(seven)) ~ three),
@@ -151,19 +143,17 @@ primary_data <- primary_data %>%
          seven = case_when(!(!is.na(four) & is.na(five)) ~ seven),
          seven = case_when(!(!is.na(five) & !is.na(eleven)) ~ seven),
          nine = case_when(!(is.na(seven) & !is.na(eleven)) ~ nine)) %>% 
-  unite("provider_name", c("one", "two", "three", "four", "five", "seven", "nine", "eleven"), sep = " ")
-primary_data$provider_name <- str_remove_all(primary_data$provider_name, " NA")
-
-primary_data <- primary_data %>% 
-  mutate(locality = case_when(provider_name %in% c("Northeastern Vermont Regional Hospital", "Springfield Medical Care System") ~ "VERMONT",
+  unite("provider_name", c("one", "two", "three", "four", "five", "seven", "nine", "eleven"), sep = " ") %>% 
+  mutate(provider_name = str_remove_all(provider_name, " NA"),
+         locality = case_when(provider_name %in% c("Northeastern Vermont Regional Hospital", "Springfield Medical Care System") ~ "VERMONT",
                               provider_name %in% c("Orthopaedic Surgical Associates", "Northeast Endoscopy Center", "Lowell General Hospital",
                                                    "Lahey Health", "Orthopaedic Northeast", "Steward Medical Group", "Lawrence General Hospital", 
                                                    "Merrimack Valley Endoscopy Center", "Anna Jaques Hospital") ~ "METROPOLITAN BOSTON, MA",
                               provider_name %in% c("Bridgton Hospital", "York Hospital") ~ "SOUTHERN MAINE",
-                              TRUE ~ "NEW HAMPSHIRE"))
-
-primary_data$provider_name <- str_replace_all(primary_data$provider_name, "Lakes Region General Healthcare", "Lakes Region General Hospital")
-
+                              TRUE ~ "NEW HAMPSHIRE"),
+         provider_name = str_replace_all(provider_name, "Lakes Region General Healthcare", "Lakes Region General Hospital"),
+         provider_name = str_replace_all(provider_name, "LRGHealthcareLRGHealthcare", "LRGHealthcare"),
+         provider_name = str_replace_all(provider_name, "Dartmouth-Hitchcock Clinic", "Dartmouth-Hitchcock (Manchester)"))
 
 
 # Constructing Medicare prices and adding to primary data set
@@ -232,7 +222,7 @@ primary_data <- medicare_prices %>%
                                insurer != "Medicare" ~ 0)) %>% 
   filter(!cpt_code %in% c("29881", "45380", "45385", "85027")) # only looking at radiology services or top 10 procedures
 
-hospital_compare_data <- read_csv("Hospital_General_Information_copy.csv") %>% 
+hospital_compare_data <- read_csv("Hospital_Compare_data/Hospital_General_Information_copy.csv") %>% 
   filter(State %in% c("VT", "NH", "ME", "MA")) %>% 
   mutate(provider_name = str_to_title(`Hospital Name`)) %>% 
   filter(`Provider ID` != "200001")
@@ -244,6 +234,16 @@ hospital_compare_data$provider_name <- str_replace_all(hospital_compare_data$pro
 
 primary_data <- primary_data %>% 
   left_join(hospital_compare_data, by = "provider_name")
+
+# Hospital and ambulatory center latitude and longitude
+hospital_info <- read_csv("hospital_info.csv") %>% 
+  mutate(long = -long) %>% 
+  filter(!is.na(lat))
+
+primary_data <- primary_data %>% 
+  left_join(hospital_info, by = "provider_name") %>% 
+  select(-n)
+
 ```
 
 ### Abstract
@@ -363,13 +363,6 @@ New Hampshire has a total of 31 hospitals and 3,503 beds (New Hampshire Hospital
 states <- map_data("state")
 
 north_east <- subset(states, region %in% c("vermont", "new hampshire", "maine", "massachusetts", "connecticut", "rhode island"))
-
-hospital_info <- read_csv("hospital_info.csv") %>% 
-  mutate(long = -long) %>% 
-  filter(!is.na(lat))
-
-primary_data <- primary_data %>% 
-  left_join(hospital_info, by = "provider_name") 
 
 static_map <- ggplot(data = north_east) + 
   geom_polygon(aes(x = long, y = lat, group = group), fill = "palegreen", color = "black") + 
@@ -511,8 +504,8 @@ lm_hospital_compare <- lm(data = compare_regression_data, formula = percent_medi
 ```
 
 <div align="center">
-```{r, results = "asis", out.width='100%'}
-knitr::opts_chunk$set(echo = FALSE)
+```{r, echo=FALSE, results = "asis", out.width='100%'}
+
 stargazer(lm_hospital_compare, type = "html", omit = c(2:43), 
           title = "Hospital Quality Measures and Relative Price",
           covariate.labels = "Overall Hospital Rating (Hospital Quality)", 
@@ -528,7 +521,7 @@ primary_data %>%
   filter(procedure == "Ultrasound - Transvaginal (non-maternity)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
   count(provider_name, insurer) %>% 
   count(provider_name) %>% 
-  filter(n == 3) %>%
+  filter(nn == 3) %>%
   left_join(primary_data, by = "provider_name") %>% 
   filter(procedure == "Ultrasound - Transvaginal (non-maternity)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>%
   group_by(provider_name) %>% 
@@ -550,7 +543,7 @@ primary_data %>%
   filter(procedure == "X-Ray - Spine (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
   count(provider_name, insurer) %>% 
   count(provider_name) %>% 
-  filter(n == 3) %>%
+  filter(nn == 3) %>%
   left_join(primary_data, by = "provider_name") %>% 
   filter(procedure == "X-Ray - Spine (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>%
   group_by(provider_name) %>% 
@@ -566,6 +559,7 @@ primary_data %>%
   theme(axis.title.y = element_blank()) +
   coord_flip()
 ```
+
 These graphs present several examples of striking price variation for two common radiology services, Ultrasound - Tranvaginal (non-maternity) and X-Ray - Spine (outpatient). For all of the hospitals in the ultrasound graph, there is a difference of at least \$150 in the price paid by the highest payer and that paid by the lowest payer. In three of these hospitals (St. Joseph Hospital, Anna Jaques Hospital, and Foundation Medical Partners), the highest payer is paying more than twice the amount the lowest payer is paying. For all of the hospitals in the x-ray graph, there is a difference of at least \$100 between the highest and lowest payers. I make the assumption that it is unlikely that the cost of providing each of these services and the quality of each of these services within the same hospital should not vary with patients' insurance coverage. That is, it is reasonable to assume that it is no more costly from the hospital's point of view to perform a spine x-ray on a patient covered by CIGNA as opposed to a patient covered by Anthem, and hospitals do not provide higher quality spine x-rays to CIGNA covered patients that they do to Anthem patients.
 
 Seeing that hospital price variation does not appear greatly correlated with costs or quality within hospitals, the analysis that follows will investigate how the market power of the insurer and the market power of the hospital relate to price. 
@@ -604,6 +598,100 @@ primary_data %>%
   scale_x_discrete(name = "Insurer") +
   labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "Radiology services")
 ```
+The 
+
+### Second Stage: Comparing Price Variation and Hospital Concentration
+***For now,*** I restrict this second stage regression to only hospitals included in the Hospital Compare data set as these are hospitals that Medicare officially recognizes as Acute Care or Critical Access Hospitals. I then compare how the prices for each insurer varies with how many hospitals are within each hospital's market. I define a hospital's market as being within +/- .2 degrees of latitude and longitude of that hospital. I also include the median household income of the county obtained from [2017 US Census Data](https://www.census.gov/quickfacts/fact/map/US/INC110217).
+```{r, include=FALSE}
+
+filter_in_radius <- function(x) {
+  h <- primary_data %>% 
+    mutate(max_lat = lat + 0.1,
+           min_lat = lat - 0.1,
+           max_long = long + 0.1,
+           min_long = long - 0.1) %>% 
+    filter(provider_name == x) %>% 
+  count(provider_name, max_lat, min_lat, max_long, min_long)
+  
+  max_lat_h <- h$max_lat
+  min_lat_h <- h$min_lat
+  max_long_h <- h$max_long
+  min_long_h <- h$min_long
+  
+  primary_data %>%
+    filter(!is.na(`Provider ID`),
+           lat < max_lat_h, 
+           lat > min_lat_h, 
+           long < max_long_h, 
+           long > min_long_h) %>% 
+    count(provider_name, procedure) %>% 
+    group_by(procedure) %>% 
+    summarize(provider_name = x, n_hospitals = n()) %>% 
+    ungroup()
+}
+
+
+ primary_data <- bind_rows(filter_in_radius("York Hospital"), 
+  filter_in_radius("Bridgton Hospital"),
+  filter_in_radius("Lawrence General Hospital"),
+  filter_in_radius("Anna Jaques Hospital"),
+  filter_in_radius("Lowell General Hospital"),
+  filter_in_radius("Concord Hospital"),
+  filter_in_radius("Mary Hitchcock Memorial Hospital"),
+  filter_in_radius("Lakes Region General Hospital"),
+  filter_in_radius("St. Joseph Hospital"),
+  filter_in_radius("Elliot Hospital"),
+  filter_in_radius("Frisbie Memorial Hospital"),
+  filter_in_radius("Parkland Medical Center"),
+  filter_in_radius("Wentworth-Douglass Hospital"),
+  filter_in_radius("Cheshire Medical Center"),
+  filter_in_radius("Southern NH Medical Center"),
+  filter_in_radius("Exeter Hospital"),
+  filter_in_radius("Portsmouth Regional Hospital"),
+  filter_in_radius("Catholic Medical Center"), 
+  filter_in_radius("Upper Connecticut Valley Hospital"),
+  filter_in_radius("Cottage Hospital"),
+  filter_in_radius("Littleton Regional Healthcare"),
+  filter_in_radius("Weeks Medical Center"),
+  filter_in_radius("New London Hospital"),
+  filter_in_radius("Alice Peck Day Memorial Hospital"),
+  filter_in_radius("Franklin Regional Hospital"),
+  filter_in_radius("Memorial Hospital"),
+  filter_in_radius("Valley Regional Hospital"),
+  filter_in_radius("Monadnock Community Hospital"),
+  filter_in_radius("Androscoggin Valley Hospital"),
+  filter_in_radius("Speare Memorial Hospital"),
+  filter_in_radius("Huggins Hospital"),
+  filter_in_radius("Northeastern Vermont Regional Hospital")) %>% 
+  right_join(primary_data, by = c("provider_name", "procedure"))
+ 
+primary_data <- primary_data %>% 
+  count(`County Name`) %>% 
+  select(`County Name`) %>% 
+  mutate(median_household_income = c(65834, 47371, 58139, 60148, 45386, 65702, 73533, 61036, 75777, 69856, 92878, 85619, 67805, 59419, 62618, NA)) %>% 
+  right_join(primary_data, by = "County Name") 
+ 
+hospital_market_data <- primary_data %>% 
+  filter(!is.na(`Provider ID`), !insurer %in% c("Uninsured", "Other", "Medicare"),
+         !cpt_code %in% c("29826", "29881", "42820", "43239", "45378", "45380", "45385", "51798", "85027", "99282", "99283"))
+ 
+lm_hospital_market <- lm(data = hospital_market_data, 
+                         formula = percent_medicare ~ n_hospitals + median_household_income + `Hospital overall rating` + factor(procedure) + factor(insurer))
+
+```
+
+<div align = "center">
+```{r, echo=FALSE, results = "asis"}
+
+stargazer(lm_hospital_market, type = "html", omit = c(6:39), 
+          title = "Number of Hospitals in Market and Relative Price",
+          covariate.labels = c("Number of Hospitals in Market", "Median Household Income (county)", 
+                               "Overall Hospital Rating - 3",
+                               "Overall Hospital Rating - 4",
+                               "Overall Hospital Rating - 5"), 
+          dep.var.labels = "Percent of Medicare Price")
+```
+</div>
 
 <br>
 
@@ -616,7 +704,7 @@ primary_data %>%
 The results are listed below and show that Anthem pays on average 887% of Medicare prices, Harvard Pilgrim pays 920%, and CIGNA pays 1049%.
 
 <div align="center">
-```{r, results = "asis", fig.align='center'}
+```{r, echo=FALSE, results = "asis", fig.align='center'}
 knitr::opts_chunk$set(echo = FALSE)
 stargazer(lm_results, type = "html", omit = c(4:172), 
           title = "Insurance Carrier and Relative Prices",
