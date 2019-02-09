@@ -233,7 +233,9 @@ hospital_compare_data$provider_name <- str_replace_all(hospital_compare_data$pro
 hospital_compare_data$provider_name <- str_replace_all(hospital_compare_data$provider_name, "St Joseph Hospital", "St. Joseph Hospital")
 
 primary_data <- primary_data %>% 
-  left_join(hospital_compare_data, by = "provider_name")
+  left_join(hospital_compare_data, by = "provider_name") %>% 
+  mutate(`Hospital Type` = case_when(is.na(`Hospital Type`) ~ "Non-Hospital Provider",
+                                     TRUE ~ `Hospital Type`))
 
 # Hospital and ambulatory center latitude and longitude
 hospital_info <- read_csv("hospital_info.csv") %>% 
@@ -354,8 +356,7 @@ private_insurance %>%
   labs(title = "Distribution by Insurer for NH Commercial Market in 2017")
 ```
 
-
-New Hampshire has a total of 31 hospitals and 3,503 beds (New Hampshire Hospital Association 2018). According to the New Hampshire Hospital Association, 13 of these hospitals with 2,704 beds total are Prospective Payment Systems (PPS) Hospitals, which take prospective payments from Medicare; 13 hospitals with 301 beds total are Critical Access Hospitals (CAH), which serve rural populations and therefore are eligible to receive certain benefits from Medicare such as cost-based reimbursement for Medicare services (Rural Health Information Hub 2018); 5 hospitals with 498 beds total are Specialty Hospitals, which provide a specialized category of services (such as children’s hospitals, orthopedic hospitals, cancer hospitals, etc.). All of these hospitals can serve non-Medicare patients as well.
+New Hampshire has a total of 31 hospitals and 3,503 beds within the state (New Hampshire Hospital Association 2018). According to the New Hampshire Hospital Association, 13 of these hospitals with 2,704 beds total are Prospective Payment Systems (PPS) Hospitals, which take prospective payments from Medicare; 13 hospitals with 301 beds total are Critical Access Hospitals (CAH), which serve rural populations and therefore are eligible to receive certain benefits from Medicare such as cost-based reimbursement for Medicare services (Rural Health Information Hub 2018); 5 hospitals with 498 beds total are Specialty Hospitals, which provide a specialized category of services (such as children’s hospitals, orthopedic hospitals, cancer hospitals, etc.). All of these hospitals can serve non-Medicare patients as well.
 
 ##### Location of New Hampshire Hospitals (from Google Maps data):
 ```{r, echo=FALSE, out.width="100%", message=FALSE, warning=FALSE}
@@ -373,8 +374,10 @@ static_map <- ggplot(data = north_east) +
 
 Sys.setenv('MAPBOX_TOKEN' = 'pk.eyJ1IjoidHJva29zIiwiYSI6ImNqcmg0aXY2MjJyYXo0M252NDd2aTNjOTEifQ.KUgzpvmF9LaUKBa7SkoFqw')
 
-plotly_nh_hospitals <- hospital_info %>%
-  plot_mapbox(lat = ~lat, lon = ~long, text = ~provider_name,
+plotly_nh_hospitals <- primary_data %>%
+  count(provider_name, lat, long, `Hospital Type`, `Hospital overall rating`) %>% 
+  arrange(`Hospital Type`)
+  plot_mapbox(lat = ~lat, lon = ~long, text = ~provider_name, color = ~`Hospital overall rating`,
               mode = 'scattermapbox', hoverinfo = 'text') %>%
   layout(title = 'New Hampshire Hospitals',
          mapbox = list(style = 'light',
@@ -535,8 +538,8 @@ primary_data %>%
   scale_y_continuous(name = "Price Estimate", labels = dollar) +
   labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: Ultrasound - Transvaginal (non-maternity)") + 
   theme(axis.title.y = element_blank()) +
-  coord_flip() +
-  geom_text(aes(label = paste0("$", estimate_of_total_cost)), color = "black", position = position_dodge(width = TRUE), size = 2)
+  coord_flip()
+  # geom_text(aes(label = paste0("$", estimate_of_total_cost)), color = "black", position = position_dodge(width = TRUE), size = 2)
   
 
 primary_data %>% 
@@ -601,7 +604,7 @@ primary_data %>%
 The 
 
 ### Second Stage: Comparing Price Variation and Hospital Concentration
-***For now,*** I restrict this second stage regression to only hospitals included in the Hospital Compare data set as these are hospitals that Medicare officially recognizes as Acute Care or Critical Access Hospitals. I then compare how the prices for each insurer varies with how many hospitals are within each hospital's market. I define a hospital's market as being within +/- .2 degrees of latitude and longitude of that hospital. I also include the median household income of the county obtained from [2017 US Census Data](https://www.census.gov/quickfacts/fact/map/US/INC110217).
+***For now,*** I restrict this second stage regression to only hospitals included in the Hospital Compare data set as these are hospitals that Medicare officially recognizes as Acute Care or Critical Access Hospitals. I then compare how the prices for each insurer varies with how many hospitals are within each hospital's market. I define a hospital's market as being within +/- 0.2 degrees of latitude and longitude of that hospital. I also include the median household income of the county obtained from [2017 US Census Data](https://www.census.gov/quickfacts/fact/map/US/INC110217).
 ```{r, include=FALSE}
 
 filter_in_radius <- function(x) {

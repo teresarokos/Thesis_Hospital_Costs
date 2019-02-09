@@ -23,113 +23,125 @@ library(janitor)
 library(scales)
 library(ggthemes)
 library(stringi)
+library(stargazer)
+library(ggplot2)
+library(ggmap)
+library(maps)
+library(mapdata)
+library(plotly)
+library(foreign)
+library(purrr)
 ```
 
 ```{r, include=FALSE}
-
-file_names <- dir_ls("NH_HealthCost_data/")
 
 merge_sheets <- function(x) {
   bind_rows(
     x %>%
       excel_sheets() %>%
       set_names() %>% 
-      map(read_excel, path = x), .id = "Insurer")
+      purrr::map(read_excel, path = x), .id = "Insurer")
 }
 
 primary_data <- bind_rows(
-merge_sheets("NH_HealthCost_data/29881 Arthroscopic Knee Surgery (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/45378 Diagnostic colonoscopy (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/45380 Colonoscopy with biopsy (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/45385 Colonoscopy with polyp removal (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/51798 Urine Capacity Measurement.xlsx"),
-merge_sheets("NH_HealthCost_data/70450 CT - Head&Brain, without dye.xlsx"),
-merge_sheets("NH_HealthCost_data/70553 MRI - Brain (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/71020 X-Ray - Chest (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/71260 CT - Chest (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/72040 X-Ray - Neck (Spine, Cervical).xlsx"),
-merge_sheets("NH_HealthCost_data/72070 X-Ray - Middle Back (Spine, Thoracic).xlsx"),
-merge_sheets("NH_HealthCost_data/72100 X-Ray - Spine (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/72148 MRI - Back (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/72170 X-Ray - Pelvis.xlsx"),
-merge_sheets("NH_HealthCost_data/72197 MRI - Pelvis (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/73030 X-Ray - Shoulder (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/73110 X-Ray - Wrist (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/73130 X-Ray - Hand.xlsx"),
-merge_sheets("NH_HealthCost_data/73221 MRI - Shoulder, Elbow, or Wrist.xlsx"),
-merge_sheets("NH_HealthCost_data/73502 X-Ray - Hip.xlsx"),
-merge_sheets("NH_HealthCost_data/73562 X-Ray - Knee (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/73610 X-Ray - Ankle (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/73630 X-Ray - Foot (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/73721 MRI - Knee (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/74000 X-Ray - Abdomen.xlsx"),
-merge_sheets("NH_HealthCost_data/74177 CT - Abdomen & Pelvis, with contrast.xlsx"),
-merge_sheets("NH_HealthCost_data/76536 Ultrasound - Head and Neck.xlsx"),
-merge_sheets("NH_HealthCost_data/76642 Ultrasound - Breast (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/76700 Ultrasound - Abdominal, Complete.xlsx"),
-merge_sheets("NH_HealthCost_data/76705 Ultrasound - Abdominal, Limited.xlsx"),
-merge_sheets("NH_HealthCost_data/76805 Ultrasound - Pregnancy (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/76816 Ultrasound - Pregnancy follow-up.xlsx"),
-merge_sheets("NH_HealthCost_data/76830 Ultrasound - Transvaginal (non-maternity).xlsx"),
-merge_sheets("NH_HealthCost_data/76856 Ultrasound - Pelvic (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/77067 Mammogram (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/77080 Bone Density Scan (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/78452 Myocardial Imaging (outpatient).xlsx"),
-merge_sheets("NH_HealthCost_data/85027 Blood test for complete blood cell count (hemoglobin).xlsx"),
-  .id = "Procedure"
-) %>% 
-  mutate(Procedure = case_when(Procedure == 1 ~ "29881 Arthroscopic Knee Surgery (outpatient)",
-Procedure == 2 ~ "45378 Diagnostic colonoscopy (outpatient)",
-Procedure == 3 ~ "45380 Colonoscopy with biopsy (outpatient)",
-Procedure == 4 ~ "45385 Colonoscopy with polyp removal (outpatient)",
-Procedure == 5 ~ "51798 Urine Capacity Measurement",
-Procedure == 6 ~ "70450 CT - Head&Brain, without dye",
-Procedure == 7 ~ "70553 MRI - Brain (outpatient)",
-Procedure == 8 ~ "71020 X-Ray - Chest (outpatient)",
-Procedure == 9 ~ "71260 CT - Chest (outpatient)",
-Procedure == 10 ~ "72040 X-Ray - Neck (Spine, Cervical)",
-Procedure == 11 ~ "72070 X-Ray - Middle Back (Spine, Thoracic)",
-Procedure == 12 ~ "72100 X-Ray - Spine (outpatient)",
-Procedure == 13 ~ "72148 MRI - Back (outpatient)",
-Procedure == 14 ~ "72170 X-Ray - Pelvis",
-Procedure == 15 ~ "72197 MRI - Pelvis (outpatient)",
-Procedure == 16 ~ "73030 X-Ray - Shoulder (outpatient)",
-Procedure == 17 ~ "73110 X-Ray - Wrist (outpatient)",
-Procedure == 18 ~ "73130 X-Ray - Hand",
-Procedure == 19 ~ "73221 MRI - Shoulder, Elbow, or Wrist",
-Procedure == 20 ~ "73502 X-Ray - Hip",
-Procedure == 21 ~ "73562 X-Ray - Knee (outpatient)",
-Procedure == 22 ~ "73610 X-Ray - Ankle (outpatient)",
-Procedure == 23 ~ "73630 X-Ray - Foot (outpatient)",
-Procedure == 24 ~ "73721 MRI - Knee (outpatient)",
-Procedure == 25 ~ "74000 X-Ray - Abdomen",
-Procedure == 26 ~ "74177 CT - Abdomen & Pelvis, with contrast",
-Procedure == 27 ~ "76536 Ultrasound - Head and Neck",
-Procedure == 28 ~ "76642 Ultrasound - Breast (outpatient)",
-Procedure == 29 ~ "76700 Ultrasound - Abdominal, Complete",
-Procedure == 30 ~ "76705 Ultrasound - Abdominal, Limited",
-Procedure == 31 ~ "76805 Ultrasound - Pregnancy (outpatient)",
-Procedure == 32 ~ "76816 Ultrasound - Pregnancy follow-up",
-Procedure == 33 ~ "76830 Ultrasound - Transvaginal (non-maternity)",
-Procedure == 34 ~ "76856 Ultrasound - Pelvic (outpatient)",
-Procedure == 35 ~ "77067 Mammogram (outpatient)",
-Procedure == 36 ~ "77080 Bone Density Scan (outpatient)",
-Procedure == 37 ~ "78452 Myocardial Imaging (outpatient)",
-Procedure == 38 ~ "85027 Blood test for complete blood cell count (hemoglobin)")) %>% 
+  merge_sheets("NH_HealthCost_data/29826 Arthroscopic Shoulder Surgery.xlsx"),
+  merge_sheets("NH_HealthCost_data/29881 Arthroscopic Knee Surgery (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/42820 Tonsillectomy with Adenoidectomy (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/43239 Upper Gastrointestinal Endoscopy, with biopsy.xlsx"),
+  merge_sheets("NH_HealthCost_data/45378 Diagnostic colonoscopy (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/45380 Colonoscopy with biopsy (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/45385 Colonoscopy with polyp removal (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/51798 Urine Capacity Measurement.xlsx"),
+  merge_sheets("NH_HealthCost_data/70450 CT - Head&Brain, without dye.xlsx"),
+  merge_sheets("NH_HealthCost_data/70553 MRI - Brain (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/71020 X-Ray - Chest (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/71260 CT - Chest (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/72040 X-Ray - Neck (Spine, Cervical).xlsx"),
+  merge_sheets("NH_HealthCost_data/72070 X-Ray - Middle Back (Spine, Thoracic).xlsx"),
+  merge_sheets("NH_HealthCost_data/72100 X-Ray - Spine (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/72148 MRI - Back (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/72170 X-Ray - Pelvis.xlsx"),
+  merge_sheets("NH_HealthCost_data/72197 MRI - Pelvis (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/73030 X-Ray - Shoulder (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/73110 X-Ray - Wrist (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/73130 X-Ray - Hand.xlsx"),
+  merge_sheets("NH_HealthCost_data/73221 MRI - Shoulder, Elbow, or Wrist.xlsx"),
+  merge_sheets("NH_HealthCost_data/73502 X-Ray - Hip.xlsx"),
+  merge_sheets("NH_HealthCost_data/73562 X-Ray - Knee (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/73610 X-Ray - Ankle (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/73630 X-Ray - Foot (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/73721 MRI - Knee (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/74000 X-Ray - Abdomen.xlsx"),
+  merge_sheets("NH_HealthCost_data/74177 CT - Abdomen & Pelvis, with contrast.xlsx"),
+  merge_sheets("NH_HealthCost_data/76536 Ultrasound - Head and Neck.xlsx"),
+  merge_sheets("NH_HealthCost_data/76642 Ultrasound - Breast (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/76700 Ultrasound - Abdominal, Complete.xlsx"),
+  merge_sheets("NH_HealthCost_data/76705 Ultrasound - Abdominal, Limited.xlsx"),
+  merge_sheets("NH_HealthCost_data/76805 Ultrasound - Pregnancy (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/76816 Ultrasound - Pregnancy follow-up.xlsx"),
+  merge_sheets("NH_HealthCost_data/76830 Ultrasound - Transvaginal (non-maternity).xlsx"),
+  merge_sheets("NH_HealthCost_data/76856 Ultrasound - Pelvic (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/77067 Mammogram (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/77080 Bone Density Scan (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/78452 Myocardial Imaging (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/85027 Blood test for complete blood cell count (hemoglobin).xlsx"),
+  merge_sheets("NH_HealthCost_data/99282 Emergency Department Visit - Low Complexity (outpatient).xlsx"),
+  merge_sheets("NH_HealthCost_data/99283 Emergency Room Visit - Medium (outpatient).xlsx"),
+    .id = "Procedure") %>% 
+  mutate(Procedure = case_when(Procedure == 1 ~ "29826 Arthroscopic Shoulder Surgery",
+    Procedure == 2 ~ "29881 Arthroscopic Knee Surgery (outpatient)",
+    Procedure == 3 ~ "42820 Tonsillectomy with Adenoidectomy (outpatient)",
+    Procedure == 4 ~ "43239 Upper Gastrointestinal Endoscopy, with biopsy",
+    Procedure == 5 ~ "45378 Diagnostic colonoscopy (outpatient)",
+    Procedure == 6 ~ "45380 Colonoscopy with biopsy (outpatient)",
+    Procedure == 7 ~ "45385 Colonoscopy with polyp removal (outpatient)",
+    Procedure == 8 ~ "51798 Urine Capacity Measurement",
+    Procedure == 9 ~ "70450 CT - Head&Brain, without dye",
+    Procedure == 10 ~ "70553 MRI - Brain (outpatient)",
+    Procedure == 11 ~ "71020 X-Ray - Chest (outpatient)",
+    Procedure == 12 ~ "71260 CT - Chest (outpatient)",
+    Procedure == 13 ~ "72040 X-Ray - Neck (Spine, Cervical)",
+    Procedure == 14 ~ "72070 X-Ray - Middle Back (Spine, Thoracic)",
+    Procedure == 15 ~ "72100 X-Ray - Spine (outpatient)",
+    Procedure == 16 ~ "72148 MRI - Back (outpatient)",
+    Procedure == 17 ~ "72170 X-Ray - Pelvis",
+    Procedure == 18 ~ "72197 MRI - Pelvis (outpatient)",
+    Procedure == 19 ~ "73030 X-Ray - Shoulder (outpatient)",
+    Procedure == 20 ~ "73110 X-Ray - Wrist (outpatient)",
+    Procedure == 21 ~ "73130 X-Ray - Hand",
+    Procedure == 22 ~ "73221 MRI - Shoulder, Elbow, or Wrist",
+    Procedure == 23 ~ "73502 X-Ray - Hip",
+    Procedure == 24 ~ "73562 X-Ray - Knee (outpatient)",
+    Procedure == 25 ~ "73610 X-Ray - Ankle (outpatient)",
+    Procedure == 26 ~ "73630 X-Ray - Foot (outpatient)",
+    Procedure == 27 ~ "73721 MRI - Knee (outpatient)",
+    Procedure == 28 ~ "74000 X-Ray - Abdomen",
+    Procedure == 29 ~ "74177 CT - Abdomen & Pelvis, with contrast",
+    Procedure == 30 ~ "76536 Ultrasound - Head and Neck",
+    Procedure == 31 ~ "76642 Ultrasound - Breast (outpatient)",
+    Procedure == 32 ~ "76700 Ultrasound - Abdominal, Complete",
+    Procedure == 33 ~ "76705 Ultrasound - Abdominal, Limited",
+    Procedure == 34 ~ "76805 Ultrasound - Pregnancy (outpatient)",
+    Procedure == 35 ~ "76816 Ultrasound - Pregnancy follow-up",
+    Procedure == 36 ~ "76830 Ultrasound - Transvaginal (non-maternity)",
+    Procedure == 37 ~ "76856 Ultrasound - Pelvic (outpatient)",
+    Procedure == 38 ~ "77067 Mammogram (outpatient)",
+    Procedure == 39 ~ "77080 Bone Density Scan (outpatient)",
+    Procedure == 40 ~ "78452 Myocardial Imaging (outpatient)",
+    Procedure == 41 ~ "85027 Blood test for complete blood cell count (hemoglobin)",
+    Procedure == 42 ~ "99282 Emergency Department Visit - Low Complexity (outpatient)",
+    Procedure == 43 ~ "99283 Emergency Room Visit - Medium (outpatient)")) %>% 
   separate(Procedure, into = c("CPT_code", "procedure"), sep = " ", extra = "merge")
 
 primary_data <- clean_names(primary_data, case = "snake")
 
 primary_data <- primary_data %>% 
+  rename(provider_name = provider_name_compare_selected) %>% 
   mutate(estimate_of_total_cost = case_when(is.na(estimate_of_total_cost) ~ estimate_of_procedure_cost,
-                                            !is.na(estimate_of_total_cost) ~ estimate_of_total_cost)) %>% 
-  rename(provider_name = provider_name_compare_selected)
-
-primary_data$provider_name <- str_remove(primary_data$provider_name, "Compare ")
-
-primary_data <- primary_data %>% 
-  separate(provider_name,sep = " ", into = c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", 
-                                   "eleven")) %>%
+                                            !is.na(estimate_of_total_cost) ~ estimate_of_total_cost),
+         insurer = str_replace_all(insurer, "None", "Uninsured"),
+         provider_name = str_remove(provider_name, "Compare ")) %>% 
+  separate(provider_name, sep = " ", into = c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven")) %>%
   select(-six, -eight, -ten) %>% 
   mutate(two = case_when(!is.na(four) ~ two),
          three = case_when(!(!is.na(two) & is.na(seven)) ~ three),
@@ -140,22 +152,122 @@ primary_data <- primary_data %>%
          seven = case_when(!(!is.na(four) & is.na(five)) ~ seven),
          seven = case_when(!(!is.na(five) & !is.na(eleven)) ~ seven),
          nine = case_when(!(is.na(seven) & !is.na(eleven)) ~ nine)) %>% 
-  unite("provider_name", c("one", "two", "three", "four", "five", "seven", "nine", "eleven"), sep = " ")
-primary_data$provider_name <- str_remove_all(primary_data$provider_name, " NA")
+  unite("provider_name", c("one", "two", "three", "four", "five", "seven", "nine", "eleven"), sep = " ") %>% 
+  mutate(provider_name = str_remove_all(provider_name, " NA"),
+         locality = case_when(provider_name %in% c("Northeastern Vermont Regional Hospital", "Springfield Medical Care System") ~ "VERMONT",
+                              provider_name %in% c("Orthopaedic Surgical Associates", "Northeast Endoscopy Center", "Lowell General Hospital",
+                                                   "Lahey Health", "Orthopaedic Northeast", "Steward Medical Group", "Lawrence General Hospital", 
+                                                   "Merrimack Valley Endoscopy Center", "Anna Jaques Hospital") ~ "METROPOLITAN BOSTON, MA",
+                              provider_name %in% c("Bridgton Hospital", "York Hospital") ~ "SOUTHERN MAINE",
+                              TRUE ~ "NEW HAMPSHIRE"),
+         provider_name = str_replace_all(provider_name, "Lakes Region General Healthcare", "Lakes Region General Hospital"),
+         provider_name = str_replace_all(provider_name, "LRGHealthcareLRGHealthcare", "LRGHealthcare"),
+         provider_name = str_replace_all(provider_name, "Dartmouth-Hitchcock Clinic", "Dartmouth-Hitchcock (Manchester)"))
+
+
+# Constructing Medicare prices and adding to primary data set
+RVU18_info <- read_xlsx("RVU18A_files/PPRRVU18_JAN_mod.xlsx", skip = 9, col_names = TRUE) %>% 
+  rename(cpt_code = HCPCS) %>% 
+  filter(cpt_code %in% c(primary_data$cpt_code, 
+                         "29806", "29807", "29819", "29820", "29821", "29822", "29823", "29824", "29825",
+                         "29873", "29874", "29875", "29876", "29877", "29879", "29880", "29881",
+                         "45384",
+                         "71045", "71046", "71047", "71048",
+                         "72050",
+                         "72072", "72074",
+                         "74018", "74019", "74021")) %>% 
+  filter(is.na(MOD)) %>% 
+  select(cpt_code, DESCRIPTION, WorkRVU = RVU, FacilityPERVU = `PE RVU__1`, MPRVU = RVU__1, ConversionFactor = FACTOR) %>% 
+  mutate(cpt_code = case_when(DESCRIPTION == "Shoulder arthroscopy/surgery" ~ "29826",
+                              DESCRIPTION == "Knee arthroscopy/surgery" ~ "29881",
+                              DESCRIPTION == "Colonoscopy w/lesion removal" ~ "45385",
+                              DESCRIPTION %in% c("X-ray exam chest 1 view", "X-ray exam chest 2 views", 
+                                                 "X-ray exam chest 3 views", "X-ray exam chest 4+ views") ~ "71020",
+                              DESCRIPTION %in% c("X-ray exam neck spine 2-3 vw", "X-ray exam neck spine 4/5vws") ~ "72040",
+                              DESCRIPTION %in% c("X-ray exam abdomen 1 view", "X-ray exam abdomen 2 views", "X-ray exam abdomen 3+ views") ~ "74000",
+                              DESCRIPTION %in% c("X-ray exam thorac spine 2vws", "X-ray exam thorac spine 3vws", "X-ray exam thorac spine4/>vw") ~ "72070",
+                              TRUE ~ cpt_code),
+         DESCRIPTION = case_when(cpt_code == "71020" ~ "X-ray exam chest",
+                                 cpt_code == "72040" ~ "X-ray exam neck spine",
+                                 cpt_code == "74000" ~ "X-ray exam abdomen",
+                                 cpt_code == "72070" ~ "X-ray exam thorac spine",
+                                 TRUE ~ DESCRIPTION)) %>% 
+  group_by(cpt_code, DESCRIPTION) %>% 
+  summarize(WorkRVU = mean(WorkRVU), FacilityPERVU = mean(FacilityPERVU), MPRVU = mean(MPRVU), ConversionFactor = mean(ConversionFactor))
+
+
+GPCI2018_info <- read_xlsx("RVU18A_files/GPCI2018_copy.xlsx", skip = 2, col_names = TRUE) %>% 
+  rename(locality = X__3) %>% 
+  filter(locality %in% c("NEW HAMPSHIRE", "SOUTHERN MAINE", "METROPOLITAN BOSTON, MA", "REST OF MASSACHUSETTS", "VERMONT")) %>% 
+  select(locality, WorkGPCI = `PW GPCI`, PEGPCI = `PE GPCI`, MPGPCI = `MP GPCI`)
+
+medicare_prices <- primary_data %>% 
+  left_join(RVU18_info, by = "cpt_code") %>% 
+  left_join(GPCI2018_info, by = "locality") %>% 
+  mutate(Medicare = ((WorkRVU * WorkGPCI) + (FacilityPERVU * PEGPCI) + (MPRVU * MPGPCI)) * ConversionFactor) %>% 
+  select(cpt_code, procedure, provider_name, locality, Medicare) %>% 
+  group_by(cpt_code, procedure, provider_name, locality) %>% 
+  summarize(Medicare = mean(Medicare)) %>% 
+  ungroup()
+
+primary_data <- primary_data %>% 
+  left_join(medicare_prices, by = c("cpt_code", "procedure", "provider_name", "locality")) %>% 
+  select(cpt_code, procedure, provider_name, locality, insurer, estimate_of_total_cost, medicare_price = Medicare, precision_of_the_cost_estimate, 
+         typical_patient_complexity, uninsured_discount)
+
+primary_data <- medicare_prices %>% 
+  gather(Medicare, key = insurer, value = estimate_of_total_cost) %>% 
+  bind_rows(primary_data) %>% 
+  mutate(medicare_price = case_when(insurer == "Medicare" ~ estimate_of_total_cost,
+                                    TRUE ~ medicare_price),
+         percent_medicare = (estimate_of_total_cost/medicare_price),
+         Anthem_NH = case_when(insurer == "Anthem NH" ~ 1,
+                               insurer != "Anthem NH" ~ 0),
+         Harvard_Pilgrim_HC = case_when(insurer == "Harvard Pilgrim HC" ~ 1,
+                               insurer != "Harvard Pilgrim HC" ~ 0),
+         CIGNA = case_when(insurer == "CIGNA" ~ 1,
+                               insurer != "CIGNA" ~ 0),
+         Medicare = case_when(insurer == "Medicare" ~ 1,
+                               insurer != "Medicare" ~ 0)) %>% 
+  filter(!cpt_code %in% c("29881", "45380", "45385", "85027")) # only looking at radiology services or top 10 procedures
+
+hospital_compare_data <- read_csv("Hospital_Compare_data/Hospital_General_Information_copy.csv") %>% 
+  filter(State %in% c("VT", "NH", "ME", "MA")) %>% 
+  mutate(provider_name = str_to_title(`Hospital Name`)) %>% 
+  filter(`Provider ID` != "200001")
+
+hospital_compare_data$provider_name <- str_replace_all(hospital_compare_data$provider_name, "Exeter Hospital Inc","Exeter Hospital") 
+hospital_compare_data$provider_name <- str_replace_all(hospital_compare_data$provider_name, "Memorial Hospital, The","Memorial Hospital") 
+hospital_compare_data$provider_name <- str_replace_all(hospital_compare_data$provider_name, "Southern Nh Medical Center", "Southern NH Medical Center")
+hospital_compare_data$provider_name <- str_replace_all(hospital_compare_data$provider_name, "St Joseph Hospital", "St. Joseph Hospital")
+
+primary_data <- primary_data %>% 
+  left_join(hospital_compare_data, by = "provider_name") %>% 
+  mutate(`Hospital Type` = case_when(is.na(`Hospital Type`) ~ "Non-Hospital Providers",
+                                     TRUE ~ `Hospital Type`))
+
+# Hospital and ambulatory center latitude and longitude
+hospital_info <- read_csv("hospital_info.csv") %>% 
+  mutate(long = -long) %>% 
+  filter(!is.na(lat))
+
+primary_data <- primary_data %>% 
+  left_join(hospital_info, by = "provider_name") %>% 
+  select(-n)
+
 ```
 
-# Introduction
+### Abstract
+This thesis evaluates how the market power of insurers and hospitals in geographical sub-markets relates to the prices insurers and hospitals negotiate for hospital care. I examine to what extent the variation in prices is explained by variation in costs and quality versus variation in market power, which may play an important role in bilateral price negotiations for services. Using carrier-hospital specific prices for outpatient medical procedures from New Hampshire's [NH HealthCost website](https://nhhealthcost.nh.gov/costs/select), I compare the estimated prices for the same services across the state, both between hospitals and within hospitals. I find that there is no statistically significant relationship between measures of quality and price, but there are statistically significant differences in the prices paid by each major private insurer as well as statistically significant differences between hospitals in a monopoly versus duopoly.
 
-## Abstract
-This thesis evaluates how the market power of insurers and hospitals in geographical sub-markets determines the prices insurers and hospitals negotiate for hospital care. I will compare how much the variation in prices is explained by variation in costs versus variation in the context of bilateral negotiations between hospitals and insurers, specifically how this context is affected by market power. New Hampshire publishes carrier-specific prices by hospital for outpatient medical procedures and services on the [NH HealthCost website](https://nhhealthcost.nh.gov/costs/select) and therefore provides a unique case-study of insurer versus hospital market power. This allows me to compare the prices each insurer pays for the exact same services, and study how these prices may be related to the relative market power of insurers and hospitals.
+\newpage
 
+## Introduction
+### Motivation
+The U.S.'s expenditure on health care has grown rapidly over the last few decades and has outpaced that of many peer countries without significant returns to quality (e.g. OECD 2017; Etehad and Kim 2017; Reinhardt et al., 2004).  A substantial body of research has determined that the biggest driver behind the U.S. health care expenditure is not greater utilization or social spending but quite simply higher prices (e.g. Anderson et al., 2003; Papanicolas et al., 2018). Given that the $3.3 trillion spent on health care annually (17.9% of GDP) (Centers for Disease Control and Prevention 2017) erodes the budgets of families and individuals, as well as those of local, state, and federal government, understanding the sources of variation in these prices is of tremendous import. 
 
-## Motivation
-The U.S.'s expenditure on health care has grown rapidly over the last few decades and has outpaced that of many peer countries without significant returns to quality (e.g. OECD 2017; Etehad and Kim 2017; Reinhardt et al., 2004).  A substantial body of research has determined that the biggest driver behind the U.S. health care expenditure is not greater utilization or social spending but quite simply higher prices (e.g. Anderson et al., 2003; Papanicolas et al., 2018). Given that the $3.3 trillion spent on health care annually (17.9% of GDP) (Centers for Disease Control and Prevention 2017) erodes the budgets of families and individuals, state and local governments, and the federal government, understanding the sources of variation in these prices is of tremendous import. 
-
-## Industry Background
-I focus on hospital prices because hospital care constitutes the largest component of U.S. health care spending at 32.4% ($1.0825 trillion) of national health expenditure while physician and clinical services compose only 19.9% and prescription drugs account for 9.8% (Centers for Disease Control and Prevention 2017). 
-```{r, echo=FALSE, out.width="100%"}
+This paper focuses on hospital prices because hospital care constitutes the largest share and one of the fastest growing components of U.S. health care spending at 32.4% ($1.0825 trillion) of national health expenditure (Centers for Disease Control and Prevention 2017) as shown in Figure 1. A vast body of research has identified wide variation in private insurance reimbursements to hospitals for the same services and/or diagnoses ***citations***. Cooper et al., 2015 finds that for the privately insured, only about half of the variation in expenditure is due to the quantity of care delivered while half is purely driven by price variation; as a comparison, 95% of the variation in expenditure for public programs like Medicare is explained by variation in the quantity of care delivered. 
+```{r, echo=FALSE, fig.align="center"}
 
 # Creating a graphic to show the growth in U.S. health care spending over time and specifically the growth in hospital care spending
 
@@ -185,123 +297,432 @@ health_expenditures <- health_expenditures %>%
 
 ggplot(data = health_expenditures) +
   geom_line(mapping = aes(x = year, y = percent_of_gdp, color = fct_reorder(component_of_exp, -percent_of_gdp))) +
-  labs(title = "Health Care Spending in the U.S. over time", caption = paste0("Source: Centers for Disease Control and Prevention 2017")) +
+  labs(title = "Figure 1: Health Care Spending in the U.S. over time", caption = "Source: Centers for Disease Control and Prevention 2017") +
   scale_y_continuous(name = "Spending (percentage of GDP)", labels = percent) +
   scale_x_continuous(name = "Year", breaks = c(1960, 1970, 1980, 1990, 2000, 2010)) +
   scale_color_manual(name = "Component of Spending", values = c("percent_nhe" = "black", 
                                                                 "percent_hce" = "red", 
                                                                 "percent_pcse" = "gray", 
                                                                 "percent_pde" = "light gray"),
-                    labels = c("Total National Health Expenditure", "Hospital Care", "Physician and Clinical Services", "Prescription Drugs"))
+                    labels = c("Total National Health Expenditure", "Hospital Care", "Physician and Clinical Services", "Prescription Drugs")) +
+  theme_tufte()
 ```
-For public programs like Medicare, 95% of the variation in expenditure is explained by variation in the quantity of care delivered, but for the privately insured, only about half of the variation in expenditure is due to the quantity of care delivered while half is purely driven by price variation (Cooper et al., 2015). Given that the largest portion of Americans (49%) receive health care coverage from their employer through private insurance companies rather than through Medicare and Medicaid (Kaiser Family Foundation 2017), this price variation among private insurers affects what many Americans pay out of pocket for their healthcare. Moreover, this variation persists even when costs and quality are held constant: for the exact same service, hospitals are able to charge different payers vastly different amounts. Below are some visual examples from the data that illustrate this variation between the three major private payers in New Hampshire (Anthem - NH, CIGNA, and Harvard Pilgrim Health Care) for the exact same service at the exact same hospital. 
+ 
+Given that the largest portion of Americans (49%) receive health care coverage from their employer through private insurance plans rather than through Medicare and Medicaid (Kaiser Family Foundation 2017), this price variation between different private insurers/hospital contracts affects what many Americans pay in premiums and out of pocket for their healthcare. Moreover, prior research such as Cooper et al. 2015 finds that this variation persists even when costs and quality are arguably held constant. 
+
+This paper is most closely related to Cooper et al. 2015, but differs in several key respects: first, this analysis will focus a set of price data for hospital care in New Hampshire, while Cooper et al. 2015 relies on HCCI data which is a national cross-section sample and relies on claims data from Aetna, Humana, and United Health. While the HCCI data is a rich set of data that is perhaps nationally representative in a broad sense, none of these insurers are major players in the New Hampshire market; secondly, this paper will devote more attention to insurers' relative market power as well as the effects on the uninsured who have minimal market power; lastly, I also include an analysis of how the share of Medicare patients at a given hospital affects the prices that hospital negotiates with private insurers.
+
+#### Theoretical Framework
+In standard micro-economic theory, one learns that prices reflect supply and demand; in a perfectly competitive market, the supply curve is largely determined by each firm's costs of production and the demand curve determined by consumer preferences and budget constraints. In this standard model, there are no profits as both producers and consumers are price takers. However, a more realistic model allows for the possibility of profits, therefore encouraging firm entry to the industry, by admitting firms may exercise some monopolist or market power.
+
+Market power is largely a function of the number of other firms in the market, but a firm may also generate market power for itself through distiguishing it's product from others. When it's product differs from others in the market, a firm can act as a quasi-monopolist, price setter and extract a certain mark-up from consumers who have a preference for that difference and are price takers. As consumers often have a preference for quality or some aspect of quality, firms that can best distinguish their product as being of higher quality than others are more able to demand higher prices for their product(s).
+
+The market for health services (often provided through hospitals) is unique in that there are two components of demand: individuals and payers. Even this is somewhat of an oversimplification in the US market because many individuals are privately insured through their employer which contracts with a private insurer. However, for the most part, it is insurer-provider price negotiations that determine the price of care; private insurers negotiate contracts with each provider (Medicare and Medicaid set their prices at a regional level) and also dictate how much the individual or family must pay in premiums and out of pocket for each episode of care. This gives private insurers some form of monopsony power in price negotiations as there are often only a few of private insurers present in each market and they can choose whether or not to include each provider in their network, affecting the prices individual/families face for care. 
+
+Thus, payers and providers engage in bilateral negotiations where both are price setters rather than price takers. I assume the following: both the provider and the payer want to maximize the number of patients they serve and their profit margins per patient, even if the provider is a non-profit (Horwitz 2005). Providers want to receive higher prices for their services but also to be included in payers' networks, as patients face lower out-of-pocket costs when going to providers in network. Payers want to pay lower prices for providers’ services to minimize their costs but also want to attract enrollees by including convenient providers in their network, which is an important aspect of plan selection for individuals (Ho 2006). Thus, this is the bargaining environment in which bilateral hospital-insurer contracts are negotiated and the work below examines the impact on prices.
+
+#### Structure
+Section II of this paper provides background on the New Hampshire market for health services. Section III supplies explanation of the data sources being used, how they were obtained, and the relevant information contained therein. Section IV lays out the methodology of the analyses that are performed and Section V presents the results. The paper concludes with Section VI.
 
 
-For hospitals which had a price range between insurers >$100 for ankle x-rays:
-```{r, echo=FALSE, out.width="100%"}
+### Background on the New Hampshire Market
+#### Health Insurance Coverage
+New Hampshire is a small state (8,953 sqaure miles) with a population of 1.343 million (90.5% white) and median household income of $68,485 (Census Bureau 2017). Figures 2 and 3 depict the insurance status of New Hampshire residents in 2017 and the market share of major private insurers respectively. According to the New Hampshire Insurance Department, a total of 543,900 members were enrolled in commercial market plans in 2017 in the state, and 81% received coverage through employer-sponsored insurance plans (11.0% Individual Market, 7.7% NH PAP, 12.6% Small Group, 19.8% Large Group Fully Insured, and 48.9% Large Group Self Insured). 
+```{r, echo=FALSE}
+
+# Creating dataframe on insurance status in NH from NH Insurance department, first creating columns
+insurance_status <- c("Employer Coverage Only", "Individual Coverage Only", "Medicare Coverage Only", "Medicaid Coverage Only", "Uninsured", 
+                      "Other Coverage Combinations", "Dual Medicare/Medicaid Coverage", "Tricare & VA Coverage")
+percent_in <- c(56, 6, 14, 10, 6, 6, 1, 1)
+
+# Putting together as dataframe
+insurance_status_nh <- data.frame(insurance_status, percent_in)
+
+# Creating dataframe on private insurance in NH
+insurer <- c("Anthem/Matthew Thorton", "Harvard Pilgrim", "CIGNA", "Other")
+percent_enrolled <- c(39, 27, 20, 14)
+
+# Putting together as dataframe
+private_insurance <- data.frame(insurer, percent_enrolled)
+```
+
+```{r, echo=FALSE, fig.align='center'}
+insurance_status_nh %>% 
+  ggplot(aes(x = "", y = percent_in, fill = fct_reorder(insurance_status, percent_in))) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  scale_fill_brewer(name = "Insurance Status") +
+  geom_text(aes(label = paste0(percent_in, "%")), position = position_stack(vjust = 0.5), color = "white", family = "serif", check_overlap = TRUE) +
+  labs(title = "Figure 2: New Hampshire Residents by Health Insurance Status in 2017") +
+  theme_tufte() +
+  theme(axis.title.x  = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), 
+        axis.title.y  = element_blank(),
+        axis.ticks.y = element_blank())
+```
+
+```{r, echo=FALSE, fig.align='center'}
+
+private_insurance %>% 
+  ggplot(aes(x = "", y = percent_enrolled, fill = fct_reorder(insurer, percent_enrolled))) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y", start = 0) +
+  scale_fill_manual(name = "Private Insurer", values = c("CIGNA" = "#99CC00", "Anthem/Matthew Thorton" = "#336699", 
+                               "Harvard Pilgrim" = "#CC0000", "Other" = "#C0C0C0")) +
+  geom_text(aes(label = paste0(percent_enrolled, "%")), position = position_stack(vjust = 0.5), color = "white", family = "serif") +
+  labs(title = "Figure 3: Distribution by Insurer for NH Commercial Market in 2017") +
+  theme_tufte() +
+  theme(axis.title.x  = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), 
+        axis.title.y  = element_blank(),
+        axis.ticks.y = element_blank())
+```
+
+#### New Hampshire Providers
+New Hampshire has a total of 31 hospitals and 3,503 beds within the state (New Hampshire Hospital Association 2018). According to the New Hampshire Hospital Association, 13 of these hospitals with 2,704 beds total are Prospective Payment Systems (PPS) Hospitals, which take prospective payments from Medicare; 13 hospitals with 301 beds total are Critical Access Hospitals (CAH), which serve rural populations and therefore are eligible to receive certain benefits from Medicare such as cost-based reimbursement for Medicare services; 5 hospitals with 498 beds total are Specialty Hospitals, which provide a specialized category of services (such as children’s hospitals, orthopedic hospitals, cancer hospitals, etc.) and are omitted from my analysis for lack of price information. While categorized by Medicare reimbursements, all of the hospitals included in my analysis serve privately insured individuals in addition to Medicare patients.
+
+In addition to the 26 New Hampshire hospitals, there are 6 out-of-state hospitals included in my analysis which are located close to New Hampshire's borders: Anna Jaques Hospital, Lawrence General Hospital, and Lowell General Hospital (Massachusetts); Bridgton Hospital and York Hospital (Maine); and Northeastern Vermont Regional Hospital (Vermont). Furthermore, there are 99 non-hospital providers such as ambulatory surgical centers, clinics, and private phsycian groups that also provide some of the relevant outpatient procedures. Though the focus of the analysis will be on hospitals, I include these non-hospital providers in Figure 4 for context.
+
+```{r, echo=FALSE, out.width="100%", message=FALSE, warning=FALSE}
+
+counties <- map_data("county")
+
+north_east <- subset(counties, region == "new hampshire")
+                     # region %in% c("vermont", "new hampshire", "maine", "massachusetts"))
+
+ ggplot() + 
+  geom_polygon(data = north_east, aes(x = long, y = lat, group = group), fill = "light gray", color = "white") + 
+  xlim(-73, -70) +
+  ylim(42.5, 45.5) +
+  coord_fixed(1.3) +
+  geom_point(data = primary_data, mapping = aes(x = long, y = lat, color = `Hospital Type`)) +
+  scale_color_manual(name = "Hospital Type", values = c("Acute Care Hospitals" = "#0072B2", 
+                                                        "Critical Access Hospitals" = "#56B4E9", 
+                                                        "Non-Hospital Providers" = "#999999")) +
+  labs(title = "Figure 4: Location of New Hampshire Hospitals") +
+  theme_tufte() +
+  theme(axis.title.x  = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(), 
+        axis.title.y  = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+```
+
+There has only been one hospital merger involving a hospital in New Hampshire: Massachusetts General Hospital (MGH)/Partners HealthCare from Massachusetts acquired Wentworth-Douglass on January 1, 2017. However, in May 2018 Partners HealthCare also made a bid to acquire Exeter Health Resources, and this merger is still pending approval.
+
+
+
+
+## Data
+### Raw data from NH HealthCost
+The primary source of data on hospital prices comes from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) which is a publicly available tool that provides insurer-hospital specific estimations of total costs (reimbursements) for a long list of outpatient services and procedures, each assigned a Current Procedural Terminology (CPT) code. New Hampshire is among a handful of states that make such information publicly available, hence why I use it as a case study for my analysis. All cost information is based on claims data collected in the New Hampshire Comprehensive Healthcare Information System, which unfortunately I was unable to access directly. On the NH HealthCost website, the average amount each insurer pays for a given service at a given hospital is available, and it is reasonable to assume that this is roughly equivalent to the price each hospital and insurerance carrier have negotiated for each service. This allowed me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. 
+
+### CMS Data
+The Center for Medicaid and Medicare Services (CMS) provides several useful data sets that aid my analysis. The first is the Physician Fee Schedule (PFS) 2018 Relative Value file which allows me to construct the Medicare reimbursement rates at each hospital for each service observed in the NH HealthCost data. I am able to calculate the 2018 Medicare Facility Pricing Amount for each CPT code (each procedure) at the locality level using  the following formula:$$2018FacilityPricingAmount = [(WorkRVU x WorkGPCI) + (FacilityPERVU x PEGPCI) + (MPRVU x MPGPCI)] x ConversionFactor$$
+
+Medicare treats all of New Hampshire as one locality, meaning that all hospitals in New Hampshire are reimbursed the same amount for outpatient services. ***this may not be true for Critical Access Hospitals (CAHs) of which New Hampshire has 13 so I need to figure out at what rate Medicare reimburses these hospitals*** This allows me to standardize the prices available through NH HealthCost and compare how much above this baseline rate private insurers or the uninsured pay by CPT code. 
+
+The New Hampshire Hospital Association provides a list of the 82 [top outpatient CPT codes](https://www.nhha.org/images/Data/Outpatient-CPT-List-2016.pdf) (out of several thousand) in 2016 at hospitals throughout the state. For presentation's sake, I further narrow this list down to 10 of the most expensive services for which I can obtain prices from NH HealthCost and present the resulting boxplot distributions. Figure 5.1 includes payments by the uninsured, private insurers, and Medicare, and Figure 5.2 only shows the payments made by private insurers. All price data presented reflect 2018 prices.
+```{r, echo=FALSE}
+
+# Top CPT codes from NH Hospital Association
+top_cpt_codes <- read_xlsx("NHA_top_cpt_codes.xlsx", col_names = TRUE) %>% 
+  filter(!is.na(`CPT Code`))
+
+top_10_cpt <- top_cpt_codes %>% 
+  gather(-`CPT Code`, -Description, key = hospital, value = avg_price) %>% 
+  filter(!is.na(avg_price)) %>% 
+  group_by(`CPT Code`, Description) %>% 
+  summarize(avg_price_nh = mean(avg_price)) %>% 
+  arrange(desc(avg_price_nh)) %>% 
+  filter(Description %in% c("ARTHROSCOPY SHOULDER DECOM", "TONSILLECTOMY&ADNOIDECTOMY:UNDER AGE 12", "UPPER GI ENDOSCOPY, BIOPSY", 
+                            "DIAGNOSTIC COLONOSCOPY", "CT BRAIN ‐ W/OUT CONTRAST", "PELVIC ULTRASOUND ‐ NON OBGYN ( NON PREGNANCY)", 
+                            "VAGINAL ULTRASOUND ‐ NON OBGYN (NON PREGNANCY)", "ED VISIT‐ PROBLEM(S) ARE OF MODERATE SEVERITY", 
+                            "SPINE X‐RAY (LUMBAR PA‐LAT)", "ED VISIT‐ PROBLEM(S) ARE OF LOW TO MODERATE SEVERITY")) %>% 
+  rename(cpt_code = `CPT Code`, description = Description)
+
+top_10_cpt$cpt_code <- as.character(top_10_cpt$cpt_code)
+
+```
+
+```{r, message=FALSE, echo=FALSE, fig.align='center', warning=FALSE, message=FALSE}
 primary_data %>% 
-  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("None", "Other")) %>% 
+  semi_join(top_10_cpt, by = "cpt_code") %>% 
+  ggplot(aes(y = estimate_of_total_cost, fill = procedure)) + 
+  geom_boxplot(show.legend = FALSE) +
+  coord_flip() +
+  scale_y_continuous(name = "Price Estimate", labels = dollar) +
+  scale_fill_brewer() +
+  facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
+  labs(title = "Figure 5.1: Price Variation for 10 Common Outpatient Procedures (NH)", 
+       subtitle = "Uninsured, Private Insurers, and Medicare") +
+  theme_tufte() +
+  theme(axis.title.y = element_blank(),
+	        axis.text.y = element_blank(),
+	        axis.ticks.y = element_blank())
+
+
+primary_data %>% 
+  semi_join(top_10_cpt, by = "cpt_code") %>% 
+  filter(!insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
+  ggplot(aes(y = estimate_of_total_cost, fill = procedure)) + 
+  geom_boxplot(show.legend = FALSE) +
+  coord_flip() +
+  scale_y_continuous(name = "Price Estimate", labels = dollar) +
+  scale_fill_brewer() +
+  facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
+  labs(title = "Figure 5.2: Price Variation for 10 Common Outpatient Procedures (NH)", 
+       subtitle = "For the Top Three Private Insurers (Anthem, CIGNA, & Harvard Pilgrim)") +
+  theme_tufte() +
+  theme(axis.title.y = element_blank(),
+	        axis.text.y = element_blank(),
+	        axis.ticks.y = element_blank())
+```
+
+The second dataset provided by CMS is the Hospital Compare data which provides measures of quality.
+
+## Methodology
+There are three large stages to my analysis. In all three I choose to restrict my investigation to radiology services as these types of services (CT scans, MRIs, X-rays, etc.) are among the most common outpatient service can reasonably be assumed to have constant costs and quality within the same hospital. 
+
+
+#### First Stage: Price Variation Patterns and Quality
+I first want to motivate this paper by demonstrating that large price variation exists in the New Hampshire market for hospital care and that little of the variation is explained by costs and quality.
+
+Clearly, significant variation exists, but I now want to examine how this variation relates to costs and quality. In my model, I find that, controlling for procedure, across hospital price variation accounts for 16.4% of the total variation in the model and *within* hospital price variation accounts for a further 17.0% of the total variation (using ANOVA). If prices truly reflected costs and quality, one may expect to see prices vary across hospitals which may have varying levels of quality, but within the same hospital, one would expect both price and quality to be constant for the same procedure across patients with different insurers.
+```{r, include=FALSE}
+
+regression_data <- primary_data %>% 
+  filter(!insurer %in% c("Uninsured", "Other"))
+
+lm_results <-  
+  lm(data = regression_data,
+     formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(provider_name) + factor(procedure))
+
+summary(lm_results)
+
+anova(lm_results)
+```
+
+I first compare prices across hospitals using measures for overall quality obtained through [CMS Hospital Compare data](https://data.medicare.gov/data/hospital-compare). The hospital overall ratings show the quality of care a hospital may provide compared to other hospitals based on the quality measures reported on Hospital Compare, summarizing into a single rating more than 60 measures in seven measure groups: mortality, safety of care, readmission, patient experience, effectiveness of care, timeliness of care, and efficient use of medical imaging. I do not find any statistically significant nor visually apparent relationship between CMS's Overall Hospital Rating and the prices charged to private payers at that hospital; if anything, the relationship appears slightly negative.
+```{r, echo=FALSE, fig.align='center', warning=FALSE, message=FALSE, error=FALSE}
+
+primary_data %>% 
+  semi_join(top_10_cpt, by = "cpt_code") %>%
+  filter(!is.na(`Hospital overall rating`), `Hospital overall rating` != "Not Available", insurer != "Medicare", locality == "NEW HAMPSHIRE") %>% 
+  ggplot() +
+  geom_boxplot(aes(group = `Hospital overall rating`, x = `Hospital overall rating`, y = percent_medicare, fill = `Hospital overall rating`), 
+               show.legend = FALSE) +
+  scale_x_discrete(name = "Overall Hospital Rating", breaks = c("2", "3", "4", "5"),
+                   labels = c("2 - worst", "3", "4", "5 - best")) +
+  scale_y_continuous(name = "Percent of Medicare Price", labels = percent) +
+  scale_fill_brewer() +
+  labs(title = "Price Paid by Private Payers vs. CMS Overall Hospital Rating", subtitle = "For ten common procedures in NH", 
+       caption = "All NH hospitals receive the same Medicare reimbursement and were rated above a 2 by CMS.") +
+  coord_flip() +
+  theme_tufte()
+
+compare_regression_data <- primary_data %>% 
+  mutate(`Hospital overall rating` = as.numeric(`Hospital overall rating`)) 
+
+lm_hospital_compare <- lm(data = compare_regression_data, formula = percent_medicare ~  `Hospital overall rating` + factor(procedure))
+
+```
+
+```{r, echo=FALSE, results = "asis", out.width='100%'}
+
+stargazer(lm_hospital_compare, omit = c(2:43), 
+          title = "Hospital Quality Measures and Relative Price",
+          covariate.labels = "Overall Hospital Rating (Hospital Quality)", 
+          dep.var.labels = "Percent of Medicare Price")
+
+```
+
+However, I do find that for the exact same service, hospitals are able to charge different payers vastly different amounts. Below are two visual examples from the data that illustrate this variation between the three major private payers in New Hampshire (Anthem NH, CIGNA, and Harvard Pilgrim Health Care) for the same service at the same hospital. 
+
+```{r, echo=FALSE, fig.align='center'}
+primary_data %>% 
+  filter(procedure == "Ultrasound - Transvaginal (non-maternity)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
   count(provider_name, insurer) %>% 
   count(provider_name) %>% 
   filter(nn == 3) %>%
   left_join(primary_data, by = "provider_name") %>% 
-  filter(procedure == "X-Ray - Ankle (outpatient)", !insurer %in% c("None", "Other")) %>%
+  filter(procedure == "Ultrasound - Transvaginal (non-maternity)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>%
+  group_by(provider_name) %>% 
+  mutate(range = max(estimate_of_total_cost) - min(estimate_of_total_cost)) %>% 
+  filter(range > 150) %>% 
+  ungroup() %>% 
+  ggplot(aes(x = fct_reorder(provider_name, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) +
+  geom_col(position = "dodge", width = 0.5, show.legend = FALSE) +
+  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080"), name = "Insurer") +
+  scale_y_continuous(name = "Price Estimate", labels = dollar) +
+  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: Ultrasound - Transvaginal (non-maternity)") + 
+  coord_flip() +
+  theme_tufte() +
+  theme(axis.title.y = element_blank())
+  # geom_text(aes(label = paste0("$", estimate_of_total_cost)), color = "black", position = position_dodge(width = TRUE), size = 2)
+  
+
+primary_data %>% 
+  filter(procedure == "X-Ray - Spine (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>% 
+  count(provider_name, insurer) %>% 
+  count(provider_name) %>% 
+  filter(nn == 3) %>%
+  left_join(primary_data, by = "provider_name") %>% 
+  filter(procedure == "X-Ray - Spine (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare")) %>%
   group_by(provider_name) %>% 
   mutate(range = max(estimate_of_total_cost) - min(estimate_of_total_cost)) %>% 
   filter(range > 100) %>% 
+  ungroup() %>% 
   ggplot(aes(x = fct_reorder(provider_name, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) +
   geom_col(position = "dodge", width = 0.5) +
-  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
-                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#FFCC00"), name = "Insurer") +
-  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
-  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: X-Ray - Ankle (outpatient)") + 
-  theme(axis.title.y = element_blank()) +
-  coord_flip()
-```
-
-
-
-## Theoretical Framework
-Both the hospital and the insurer are often interested in maximizing their profit margins per patient, even if the hospital is a non-profit (Horwitz 2005), and maximizing the number of patients they serve. Hospitals want to receive higher prices for their services but also to be included in insurers' networks, as patients facing lower out-of-pocket costs when going to hospitals in network may be more likely to go to these hospitals. Insurers want to pay lower prices for hospitals’ services to minimize their costs but also want to attract enrollees by including convenient hospitals in their network. Thus, this is the bargaining environment in which bilateral hospital-insurer contracts are negotiated and the work below examines the impact on prices.
-
-
-
-# Data Sources
-
-## Raw data from NH HealthCost
-The primary source of data on hospital costs comes from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) which provides insurer-hospital specific estimations of total costs (reimbursements) for a long list of outpatient services and procedures. I copy and pasted this information for particular medical procedures and services into Excel spreadsheets (one for each medical procedure/service). At first, I attempted to mimic the 8 selected services analyzed in [Cooper et al. (2018)](https://healthcarepricingproject.org/sites/default/files/20180507_variationmanuscript_0.pdf) (Inpatient, Hip Replacement, Knee Replacement, Cesarean Section, Vaginal Delivery, PTCA, Colonoscopy, and Lower Limb MRI), but the website only had data for colonoscopies and MRIs. I therefore chose to first look at radiology services only as these types of services (CT scans, MRIs, X-rays) should be reasonably assumed to have constant costs and quality within the same hospital. This allowed me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. 
-
-The following boxplot depicts the various distributions of estimated prices for each private insurer.
-```{r, echo=FALSE}
-primary_data %>% 
-  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
-  geom_boxplot(show.legend = FALSE) +
-  scale_fill_manual(values = c("None" = "#999999", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
-                      "Harvard Pilgrim HC" = "#CC0000", "Other" = "#D3D3D3")) +
+  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080"), name = "Insurer") +
+  scale_y_continuous(name = "Price Estimate", labels = dollar) +
+  labs(title = "Prices Paid by Different Private Insurers", subtitle = "Procedure: X-Ray - Spine (outpatient)") +
   coord_flip() +
-  scale_y_continuous(name = "Estimate of Total Cost", labels = dollar) +
-  scale_x_discrete(name = "Insurer") +
-  labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "(27 procedures)")
+  theme_tufte() + 
+  theme(axis.title.y = element_blank())
 ```
 
-## Insurance Coverage in New Hampshire
-The pie charts below are taken from the [NH Insurance Department 2017 Final Report of Health Care Premium and Claim Cost Drivers](https://www.nh.gov/insurance/reports/documents/2018-nhid-annual-hearing-final-report.pdf) (published November 2018) and illustrate relevant information about the insurance market in New Hampshire.
+These graphs present several examples of striking price variation for two common radiology services, Ultrasound - Tranvaginal (non-maternity) and X-Ray - Spine (outpatient). For all of the hospitals in the ultrasound graph, there is a difference of at least \$150 in the price paid by the highest payer and that paid by the lowest payer. In three of these hospitals (St. Joseph Hospital, Anna Jaques Hospital, and Foundation Medical Partners), the highest payer is paying more than twice the amount the lowest payer is paying. For all of the hospitals in the x-ray graph, there is a difference of at least \$100 between the highest and lowest payers. I make the assumption that it is unlikely that the cost of providing each of these services and the quality of each of these services within the same hospital should not vary with patients' insurance coverage. That is, it is reasonable to assume that it is no more costly from the hospital's point of view to perform a spine x-ray on a patient covered by CIGNA as opposed to a patient covered by Anthem, and hospitals do not provide higher quality spine x-rays to CIGNA covered patients that they do to Anthem patients.
 
-```{r, echo=FALSE, out.width="100%"}
-knitr::include_graphics("Images/statewide_coverage_type.png")
-knitr::include_graphics("Images/employee_coverage_by_insurer.png")
-```
+Seeing that hospital price variation does not appear greatly correlated with costs or quality within hospitals, the analysis that follows will investigate how the market power of the insurer and the market power of the hospital relate to price. 
 
-
-## Location of New Hampshire Hospitals (from Google Maps data):
-
-
-## CMS Data on Provider ID and Medicare Reimbursement:
-```{r, echo=FALSE}
-nh_medicare_2015_outpatient <- read_xlsx("Medicare_Charge_Outpatient_APC28_CY2015_Provider.xlsx", skip = 6, col_names = TRUE) %>% 
- filter(`Provider\r\nState` == "NH")
-
-primary_data <- nh_medicare_2015_outpatient %>% 
-  count(`Provider ID`, `Provider Name`) %>% 
-  arrange(desc(n)) %>% 
-  mutate(provider_id = `Provider ID`, provider_name = `Provider Name`) %>% 
-  select(provider_id, provider_name) %>% 
-  full_join(primary_data, by = "provider_name")
-```
-
-
-
-# Methodology
+### Second Stage: Price Variation Patterns Across Major Private Insurers
 The goal of this analysis is to determine whether there is a statistical difference between the prices hospitals charge Anthem, Harvard Pilgrim, and CIGNA in New Hampshire. That is, for the same service at the same hospital, is one insurer consistently paying a higher amount than the other two?
 
-I create dummy variables for each of the insurers and a new variable ("percent_of_anthem") which is the price as a percentage of the price Anthem pays for the same procedure at the same hospital. Data on the price Anthem pays certain hospitals for certain procedures is unavailable either because Anthem does not have a contract with that hospital or price information is simply not available for that particular procedure. This leads 1360 observations of 4511 total observations to be dropped from the analysis, leaving 3151 observations (unique hospital-insurer-procedure combinations) remaining. With the remaining data, I regress the "percent_of_anthem" variable on each insurer dummy variable (with the Anthem dummy being excluded) and include procedure fixed effects and hospital fixed effects to isolate within-hospital variation of prices and therefore plausibly control for quality and costs.
+I create dummy variables for each of the insurers and Medicare and a new variable ("percent_medicare") which is the price as a percentage of what Medicare pays for the same procedure at the same hospital. The price Medicare pays for Blood Tests is $0 so I drop those observations from my data (from 6,329 to 6,002). With the remaining data, I regress the "percent_medicare" variable on each insurer dummy variable (with the Medicare dummy being excluded) and include procedure fixed effects and hospital fixed effects to isolate within-hospital variation of prices and therefore plausibly control for quality and costs.
 
-The results are listed below and show that CIGNA pays on average 24.594% *more* than Anthem and Harvard Pilgrim pays on average 12.936% *more* than Anthem.
-
-```{r, echo=FALSE, message=FALSE}
-
-library(foreign)
-
-anthem_prices <- primary_data %>% 
-  filter(insurer == "Anthem NH") %>% 
-  mutate(anthem_price = estimate_of_total_cost) %>% 
-  select(cpt_code, procedure, provider_name, anthem_price)
-
-primary_data <- primary_data %>% 
-  left_join(anthem_prices, by = c("cpt_code", "procedure", "provider_name")) %>% 
-  mutate(percent_of_anthem = (estimate_of_total_cost/anthem_price)*100,
-         Anthem_NH = case_when(insurer == "Anthem NH" ~ 1,
-                               insurer != "Anthem NH" ~ 0),
-         Harvard_Pilgrim_HC = case_when(insurer == "Harvard Pilgrim HC" ~ 1,
-                               insurer != "Harvard Pilgrim HC" ~ 0),
-         CIGNA = case_when(insurer == "CIGNA" ~ 1,
-                               insurer != "CIGNA" ~ 0))
-
-lm_primary_data <-  
-  lm(formula = percent_of_anthem ~ CIGNA + Harvard_Pilgrim_HC + factor(provider_name) + factor(procedure), 
-     data = subset(primary_data, !insurer %in% c("None", "Other")))
-
-library(stargazer)
-
-stargazer(lm_primary_data, type = "text")
+The following boxplot depicts the various distributions of estimated prices for each payer-type across all 32 radiology services available on NH HealthCost.
+```{r, echo=FALSE, fig.align='center'}
+primary_data %>% 
+  filter(!cpt_code %in% c("29826", "29881", "42820", "43239", "45378", "45380", "45385", "51798", "85027", "99282", "99283")) %>% 
+  ggplot(aes(x = fct_reorder(insurer, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) + 
+  geom_boxplot(show.legend = FALSE) +
+  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
+                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080")) +
+  coord_flip() +
+  scale_y_continuous(name = "Price Estimate", labels = dollar) +
+  scale_x_discrete(name = "Insurer") +
+  labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "Radiology services") +
+  theme_tufte()
 ```
+
+
+### Third Stage: Price Variation Patterns and Hospital Concentration
+***For now,*** I restrict this second stage regression to only hospitals included in the Hospital Compare data set as these are hospitals that Medicare officially recognizes as Acute Care or Critical Access Hospitals. I then compare how the prices for each insurer varies with how many hospitals are within each hospital's market. I define a hospital's market as being within +/- 0.2 degrees of latitude and longitude of that hospital. I also include the median household income of the county obtained from [2017 US Census Data](https://www.census.gov/quickfacts/fact/map/US/INC110217).
+```{r, include=FALSE}
+
+filter_in_radius <- function(x) {
+  h <- primary_data %>% 
+    mutate(max_lat = lat + 0.1,
+           min_lat = lat - 0.1,
+           max_long = long + 0.1,
+           min_long = long - 0.1) %>% 
+    filter(provider_name == x) %>% 
+  count(provider_name, max_lat, min_lat, max_long, min_long)
+  
+  max_lat_h <- h$max_lat
+  min_lat_h <- h$min_lat
+  max_long_h <- h$max_long
+  min_long_h <- h$min_long
+  
+  primary_data %>%
+    filter(!is.na(`Provider ID`),
+           lat < max_lat_h, 
+           lat > min_lat_h, 
+           long < max_long_h, 
+           long > min_long_h) %>% 
+    count(provider_name, procedure) %>% 
+    group_by(procedure) %>% 
+    summarize(provider_name = x, n_hospitals = n()) %>% 
+    ungroup()
+}
+
+
+ primary_data <- bind_rows(filter_in_radius("York Hospital"), 
+  filter_in_radius("Bridgton Hospital"),
+  filter_in_radius("Lawrence General Hospital"),
+  filter_in_radius("Anna Jaques Hospital"),
+  filter_in_radius("Lowell General Hospital"),
+  filter_in_radius("Concord Hospital"),
+  filter_in_radius("Mary Hitchcock Memorial Hospital"),
+  filter_in_radius("Lakes Region General Hospital"),
+  filter_in_radius("St. Joseph Hospital"),
+  filter_in_radius("Elliot Hospital"),
+  filter_in_radius("Frisbie Memorial Hospital"),
+  filter_in_radius("Parkland Medical Center"),
+  filter_in_radius("Wentworth-Douglass Hospital"),
+  filter_in_radius("Cheshire Medical Center"),
+  filter_in_radius("Southern NH Medical Center"),
+  filter_in_radius("Exeter Hospital"),
+  filter_in_radius("Portsmouth Regional Hospital"),
+  filter_in_radius("Catholic Medical Center"), 
+  filter_in_radius("Upper Connecticut Valley Hospital"),
+  filter_in_radius("Cottage Hospital"),
+  filter_in_radius("Littleton Regional Healthcare"),
+  filter_in_radius("Weeks Medical Center"),
+  filter_in_radius("New London Hospital"),
+  filter_in_radius("Alice Peck Day Memorial Hospital"),
+  filter_in_radius("Franklin Regional Hospital"),
+  filter_in_radius("Memorial Hospital"),
+  filter_in_radius("Valley Regional Hospital"),
+  filter_in_radius("Monadnock Community Hospital"),
+  filter_in_radius("Androscoggin Valley Hospital"),
+  filter_in_radius("Speare Memorial Hospital"),
+  filter_in_radius("Huggins Hospital"),
+  filter_in_radius("Northeastern Vermont Regional Hospital")) %>% 
+  right_join(primary_data, by = c("provider_name", "procedure"))
+ 
+primary_data <- primary_data %>% 
+  count(`County Name`) %>% 
+  select(`County Name`) %>% 
+  mutate(median_household_income = c(65834, 47371, 58139, 60148, 45386, 65702, 73533, 61036, 75777, 69856, 92878, 85619, 67805, 59419, 62618, NA)) %>% 
+  right_join(primary_data, by = "County Name") 
+ 
+hospital_market_data <- primary_data %>% 
+  filter(!is.na(`Provider ID`), !insurer %in% c("Uninsured", "Other", "Medicare"),
+         !cpt_code %in% c("29826", "29881", "42820", "43239", "45378", "45380", "45385", "51798", "85027", "99282", "99283"))
+ 
+lm_hospital_market <- lm(data = hospital_market_data, 
+                         formula = percent_medicare ~ n_hospitals + median_household_income + `Hospital overall rating` + factor(procedure) + factor(insurer))
+
+```
+
+```{r, echo=FALSE, results = "asis"}
+
+stargazer(lm_hospital_market, omit = c(6:39), 
+          title = "Number of Hospitals in Market and Relative Price",
+          covariate.labels = c("Number of Hospitals in Market", "Median Household Income (county)", 
+                               "Overall Hospital Rating - 3",
+                               "Overall Hospital Rating - 4",
+                               "Overall Hospital Rating - 5"), 
+          dep.var.labels = "Percent of Medicare Price")
+```
+
+
+### Robustness 
+
+
+
+## Results
+### Price Variation Patterns Across Major Private Insurers
+The results are listed below and show that Anthem pays on average 887% of Medicare prices, Harvard Pilgrim pays 920%, and CIGNA pays 1049%.
+
+```{r, echo=FALSE, results = "asis", fig.align='center'}
+knitr::opts_chunk$set(echo = FALSE)
+stargazer(lm_results, omit = c(4:172), 
+          title = "Insurance Carrier and Relative Prices",
+          covariate.labels = c("Anthem NH", "Harvard Pilgrim HC", "CIGNA"), 
+          dep.var.labels = "Percent of Medicare Price")
+
+```
+
+
+
+## Conclusions
