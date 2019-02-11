@@ -31,6 +31,7 @@ library(mapdata)
 library(plotly)
 library(foreign)
 library(purrr)
+library(ggrepel)
 ```
 
 ```{r, include=FALSE}
@@ -392,15 +393,37 @@ counties <- map_data("county")
 north_east <- subset(counties, region == "new hampshire")
                      # region %in% c("vermont", "new hampshire", "maine", "massachusetts"))
 
+hospitals <- primary_data %>% 
+  filter(!is.na(`Provider ID`)) %>% 
+  count(provider_name, lat, long, `Hospital Type`)
+
  ggplot() + 
   geom_polygon(data = north_east, aes(x = long, y = lat, group = group), fill = "light gray", color = "white") + 
-  xlim(-73, -70) +
-  ylim(42.5, 45.5) +
-  coord_fixed(1.3) +
+  coord_fixed(xlim = c(-75, -69),  ylim = c(42, 46), ratio = 1.3) +
   geom_point(data = primary_data, mapping = aes(x = long, y = lat, color = `Hospital Type`)) +
   scale_color_manual(name = "Hospital Type", values = c("Acute Care Hospitals" = "#0072B2", 
                                                         "Critical Access Hospitals" = "#56B4E9", 
                                                         "Non-Hospital Providers" = "#999999")) +
+  geom_text_repel(data = subset(hospitals, long < -71.4 & lat > 44), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                   box.padding = unit(0.2, 'lines'), xlim = c(-74,-72), ylim = c(44.1, 46)) +
+   geom_text_repel(data = subset(hospitals, long < -71.5 & lat < 44 & lat > 43), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                   box.padding = unit(0.2, 'lines'), xlim = c(-74,-72.5), ylim = c(42, 44.1)) +
+   geom_text_repel(data = subset(hospitals, long < -72 & lat < 43), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                   box.padding = unit(0.2, 'lines'), xlim = c(-75,-72.7), ylim = c(42, 42.8)) +
+   geom_text_repel(data = subset(hospitals, long < -71.5 & long > -72 & lat < 43), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                  box.padding = unit(0.2, 'lines'), xlim = c(-75,-72.8), ylim = c(42, 42.6)) +
+   geom_text_repel(data = subset(hospitals, long > -71.4 & lat > 44), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                   box.padding = unit(0.2, 'lines'), xlim = c(-71,-69), ylim = c(44, 46)) +
+   geom_text_repel(data = subset(hospitals, long > -71.5 & lat < 44 & lat > 43.2), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                   box.padding = unit(0.2, 'lines'), xlim = c(-70.7,-69), ylim = c(43.2, 44.1)) +
+   geom_text_repel(data = subset(hospitals, long > -71 & lat < 43.2), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                   box.padding = unit(0.2, 'lines'), xlim = c(-70,-69), ylim = c(42, 43.2)) +
+   geom_text_repel(data = subset(hospitals, long < -71 & long > -71.7 & lat < 43.1 & lat > 42.9), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                   box.padding = unit(0.2, 'lines'), xlim = c(-75,-72), ylim = c(42, 42.4)) +
+   geom_text_repel(data = subset(hospitals, long < -71.4 & long > -71.7 & lat < 42.9 & lat > 42.74), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                   box.padding = unit(0.2, 'lines'), xlim = c(-72.5,-71.9), ylim = c(41, 42.2)) +
+   geom_text_repel(data = subset(hospitals, long < -71 & long > -71.4 & lat < 42.9), aes(x = long, y = lat, label = provider_name), size = 1.7, 
+                   box.padding = unit(0.2, 'lines'), xlim = c(-71,-69), ylim = c(41, 42.7)) +
   labs(title = "Figure 4: Location of New Hampshire Hospitals") +
   theme_tufte() +
   theme(axis.title.x  = element_blank(),
@@ -412,7 +435,7 @@ north_east <- subset(counties, region == "new hampshire")
 
 ```
 
-There has only been one hospital merger involving a hospital in New Hampshire: Massachusetts General Hospital (MGH)/Partners HealthCare from Massachusetts acquired Wentworth-Douglass on January 1, 2017. However, in May 2018 Partners HealthCare also made a bid to acquire Exeter Health Resources, and this merger is still pending approval.
+There has only been one official hospital merger involving a hospital in New Hampshire: Massachusetts General Hospital (MGH)/Partners HealthCare from Massachusetts acquired Wentworth-Douglass on January 1, 2017. However, if two pending mergers go through, "22 out of New Hampshire's 26 acute-care hospitals will have established some kind of organizational connection with other institutions, often mergers in all but name" ( [Concord Monitor Jan 26, 2019](https://www.concordmonitor.com/hospitals-merge-followup-23005911) ). In May 2018 Partners HealthCare also made a bid to acquire Exeter Health Resources, and this merger is still pending approval.
 
 
 
