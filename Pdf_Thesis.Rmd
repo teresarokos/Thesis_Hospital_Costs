@@ -421,7 +421,7 @@ hospitals <- primary_data %>%
    geom_text_repel(data = subset(hospitals, long < -71 & long > -71.7 & lat < 43.1 & lat > 42.9), aes(x = long, y = lat, label = provider_name), size = 1.7, 
                    box.padding = unit(0.2, 'lines'), xlim = c(-75,-72), ylim = c(42, 42.4)) +
    geom_text_repel(data = subset(hospitals, long < -71.4 & long > -71.7 & lat < 42.9 & lat > 42.74), aes(x = long, y = lat, label = provider_name), size = 1.7, 
-                   box.padding = unit(0.2, 'lines'), xlim = c(-72.5,-71.9), ylim = c(41, 42.2)) +
+                   box.padding = unit(0.2, 'lines'), xlim = c(-72.5,-71), ylim = c(41, 42.2)) +
    geom_text_repel(data = subset(hospitals, long < -71 & long > -71.4 & lat < 42.9), aes(x = long, y = lat, label = provider_name), size = 1.7, 
                    box.padding = unit(0.2, 'lines'), xlim = c(-71,-69), ylim = c(41, 42.7)) +
   labs(title = "Figure 4: Location of New Hampshire Hospitals") +
@@ -435,8 +435,7 @@ hospitals <- primary_data %>%
 
 ```
 
-There has only been one official hospital merger involving a hospital in New Hampshire: Massachusetts General Hospital (MGH)/Partners HealthCare from Massachusetts acquired Wentworth-Douglass on January 1, 2017. However, if two pending mergers go through, "22 out of New Hampshire's 26 acute-care hospitals will have established some kind of organizational connection with other institutions, often mergers in all but name" ( [Concord Monitor Jan 26, 2019](https://www.concordmonitor.com/hospitals-merge-followup-23005911) ). In May 2018 Partners HealthCare also made a bid to acquire Exeter Health Resources, and this merger is still pending approval.
-
+There has only been one official hospital merger involving a hospital in New Hampshire: Massachusetts General Hospital (MGH)/Partners HealthCare from Massachusetts acquired Wentworth-Douglass on January 1, 2017. However, if two pending quasi-mergers go through, "22 out of New Hampshire's 26 acute-care hospitals will have established some kind of organizational connection with other institutions, often mergers in all but name" ( [Concord Monitor Jan 26, 2019](https://www.concordmonitor.com/hospitals-merge-followup-23005911) ). In May 2018 Partners HealthCare also made a bid to acquire Exeter Health Resources, and this merger is still pending approval.
 
 
 
@@ -507,6 +506,8 @@ primary_data %>%
 ```
 
 The second dataset provided by CMS is the Hospital Compare data which provides measures of quality.
+
+
 
 ## Methodology
 There are three large stages to my analysis. In all three I choose to restrict my investigation to radiology services as these types of services (CT scans, MRIs, X-rays, etc.) are among the most common outpatient service can reasonably be assumed to have constant costs and quality within the same hospital. 
