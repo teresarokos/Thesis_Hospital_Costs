@@ -161,7 +161,11 @@ primary_data <- read_csv("Hospital_Compare_data/Hospital_General_Information_cop
          provider_name = str_replace_all(provider_name, "St Joseph Hospital", "St. Joseph Hospital")) %>% 
   right_join(primary_data, by = "provider_name") %>% 
   mutate(`Hospital Type` = case_when(is.na(`Hospital Type`) ~ "Non-Hospital Providers",
-                                     TRUE ~ `Hospital Type`)) %>% 
+                                     TRUE ~ `Hospital Type`),
+         `Hospital overall rating` = case_when(provider_name == "Alice Peck Day Memorial Hospital" ~ "3",
+                                              TRUE ~ `Hospital overall rating`),
+         `Hospital overall rating footnote` = case_when(provider_name == "Alice Peck Day Memorial Hospital" ~ "2017 rating",
+                                                        TRUE ~ `Hospital overall rating footnote`)) %>% 
   select(-`Hospital Name`, -Address, -`Phone Number`, -11, -12, -15:-28)
 
 # Hospital and ambulatory center latitude and longitude
@@ -202,7 +206,8 @@ primary_data <- primary_data %>%
   right_join(primary_data, by = "provider_name")
 
 # Next, I want to calculate the distance of every hospital to every other hospital and define the markets as certain radius
-radius_provider_markets <- data.frame(provider1 = character(), procedure = character(), provider2  = character(), 
+# Counting number of hospitals that also offer that procedure
+radial_markets_procedure <- data.frame(provider1 = character(), procedure = character(), provider2  = character(), 
                                       distance = double(), 
                                       hospital_type1 = character(), hospital_type2 = character(), 
                                       hospital_rating1 = character(), hospital_rating2 = character())
@@ -228,7 +233,7 @@ long1 <- provider$long
 hospital_type1 <- provider$`Hospital Type`
 hospital_rating1 <- provider$`Hospital overall rating`
 
-radius_provider_markets <- primary_data %>% 
+radial_markets_procedure <- primary_data %>% 
   count(provider_name, procedure, lat, long, `Hospital Type`, `Hospital overall rating`) %>% 
   select(-n) %>% 
   mutate(lat = (lat*pi)/180, long = (long*pi)/180) %>% 
@@ -245,33 +250,96 @@ radius_provider_markets <- primary_data %>%
          distance = 3959*c) %>% 
   filter(distance <= 25) %>% 
   select(provider1, procedure, provider2, distance, hospital_type1, hospital_type2, hospital_rating1, hospital_rating2) %>% 
-  bind_rows(radius_provider_markets)
+  bind_rows(radial_markets_procedure)
 
 }
   
-primary_data <- radius_provider_markets %>% 
+primary_data <- radial_markets_procedure %>% 
   filter(!is.na(hospital_rating2)) %>% 
   group_by(provider1, procedure) %>% 
-  summarize(n_hosp_25mi = n()) %>% 
+  summarize(n_hosp_25mi_procedure = n()) %>% 
   ungroup() %>% 
   rename(provider_name = provider1) %>% 
   right_join(primary_data, by = c("provider_name", "procedure"))
 
-primary_data <- radius_provider_markets %>% 
+primary_data <- radial_markets_procedure %>% 
   filter(!is.na(hospital_rating2), distance <= 10) %>% 
   group_by(provider1, procedure) %>% 
-  summarize(n_hosp_10mi = n()) %>% 
+  summarize(n_hosp_10mi_procedure = n()) %>% 
   ungroup() %>% 
   rename(provider_name = provider1) %>% 
   right_join(primary_data, by = c("provider_name", "procedure"))
 
-primary_data <- radius_provider_markets %>% 
+primary_data <- radial_markets_procedure %>% 
   filter(!is.na(hospital_rating2), distance <= 5) %>% 
   group_by(provider1, procedure) %>% 
-  summarize(n_hosp_5mi = n()) %>% 
+  summarize(n_hosp_5mi_procedure = n()) %>% 
   ungroup() %>% 
   rename(provider_name = provider1) %>% 
   right_join(primary_data, by = c("provider_name", "procedure"))
+
+# Counting total number of hospitals
+radial_markets <- data.frame(provider1 = character(), provider2  = character(), 
+                                      distance = double(), 
+                                      hospital_type1 = character(), hospital_type2 = character(), 
+                                      hospital_rating1 = character(), hospital_rating2 = character())
+
+provider_coordinates <- primary_data %>% 
+  count(provider_name, lat, long, `Hospital Type`, `Hospital overall rating`) %>% 
+  select(-n) %>% 
+  mutate(lat = (lat*pi)/180, long = (long*pi)/180)
+
+for (i in provider_coordinates$provider_name) {
+
+provider <- provider_coordinates %>% 
+  filter(provider_name == i)
+
+provider1 <- provider$provider_name
+lat1 <- provider$lat
+long1 <- provider$long
+hospital_type1 <- provider$`Hospital Type`
+hospital_rating1 <- provider$`Hospital overall rating`
+
+radial_markets <- provider_coordinates %>% 
+  rename(provider2 = provider_name, lat2 = lat, long2 = long, hospital_type2 = `Hospital Type`, 
+         hospital_rating2 = `Hospital overall rating`) %>% 
+  mutate(provider1 = provider1,
+         lat1 = lat1, long1 = long1, 
+         hospital_type1 = hospital_type1,
+         hospital_rating1 = hospital_rating1,
+         dLat = (lat2 - lat1), dLong = (long2 - long1), 
+         a = (sin(dLat/2)^2) + (cos(lat1) * cos(lat2) * sin(dLong/2)^2),
+         c = 2 * atan2(sqrt(a), sqrt(1 - a)), 
+         distance = 3959*c) %>% 
+  filter(distance <= 25) %>% 
+  select(provider1, provider2, distance, hospital_type1, hospital_type2, hospital_rating1, hospital_rating2) %>% 
+  bind_rows(radial_markets)
+
+}
+  
+primary_data <- radial_markets %>% 
+  filter(!is.na(hospital_rating2)) %>% 
+  group_by(provider1) %>% 
+  summarize(n_hosp_25mi_total = n()) %>% 
+  ungroup() %>% 
+  rename(provider_name = provider1) %>% 
+  right_join(primary_data, by = "provider_name")
+
+primary_data <- radial_markets %>% 
+  filter(!is.na(hospital_rating2), distance <= 10) %>% 
+  group_by(provider1) %>% 
+  summarize(n_hosp_10mi_total = n()) %>% 
+  ungroup() %>% 
+  rename(provider_name = provider1) %>% 
+  right_join(primary_data, by = "provider_name")
+
+primary_data <- radial_markets %>% 
+  filter(!is.na(hospital_rating2), distance <= 5) %>% 
+  group_by(provider1) %>% 
+  summarize(n_hosp_5mi_total = n()) %>% 
+  ungroup() %>% 
+  rename(provider_name = provider1) %>% 
+  right_join(primary_data, by = "provider_name")
 
 
 # Top CPT codes from NH Hospital Association
@@ -306,7 +374,12 @@ primary_data <- primary_data %>%
 
 ```{r, include=FALSE}
 primary_regression_data <- primary_data %>% 
-  filter(!insurer %in% c("Uninsured", "Other"), !is.na(`ZIP Code`), !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"))
+  filter(!insurer %in% c("Uninsured", "Other"), !is.na(`ZIP Code`), !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283")) %>% 
+  mutate(`Hospital Quality` = as.numeric(`Hospital overall rating`))
+
+primary_regression_data <- data.frame(typical_patient_complexity = c(" LOW", " MEDIUM", " HIGH", NA), typical_patient_complexity_num = c(1, 2, 3, NA)) %>% 
+  mutate(typical_patient_complexity = as.character(typical_patient_complexity)) %>% 
+  right_join(primary_regression_data, by = "typical_patient_complexity")
 
 lm_insurers <- lm(data = primary_regression_data,
            formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(provider_name) + factor(procedure))
@@ -315,56 +388,76 @@ summary(lm_insurers)
 anova(lm_insurers)
 
 lm_hospitals1 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_5mi + typical_patient_complexity + `Hospital overall rating` + 
+                   formula = percent_medicare ~ n_hosp_hsa_total + typical_patient_complexity_num + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
 
 summary(lm_hospitals1)
 
 lm_hospitals2 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_10mi + typical_patient_complexity + `Hospital overall rating` + 
+                   formula = percent_medicare ~ n_hosp_hrr_total + typical_patient_complexity_num + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
 
 summary(lm_hospitals2)
 
 lm_hospitals3 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_25mi + typical_patient_complexity + `Hospital overall rating` + 
+                   formula = percent_medicare ~ n_hosp_hsa_procedure + typical_patient_complexity_num + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
 
 summary(lm_hospitals3)
 
 lm_hospitals4 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hsa_total + typical_patient_complexity + `Hospital overall rating` + 
+                   formula = percent_medicare ~ n_hosp_hrr_procedure + typical_patient_complexity_num + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
 
 summary(lm_hospitals4)
 
 lm_hospitals5 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hrr_total + typical_patient_complexity + `Hospital overall rating` + 
+                   formula = percent_medicare ~ n_hosp_5mi_total + typical_patient_complexity_num + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
 
 summary(lm_hospitals5)
 
 lm_hospitals6 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hsa_procedure + typical_patient_complexity + `Hospital overall rating` + 
+                   formula = percent_medicare ~ n_hosp_10mi_total + typical_patient_complexity_num + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
 
 summary(lm_hospitals6)
 
 lm_hospitals7 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hrr_procedure + typical_patient_complexity + `Hospital overall rating` + 
+                   formula = percent_medicare ~ n_hosp_25mi_total  + typical_patient_complexity_num + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
 
 summary(lm_hospitals7)
 
-glimpse(primary_data)
+lm_hospitals8 <- lm(data = primary_regression_data,
+                   formula = percent_medicare ~ n_hosp_5mi_procedure + typical_patient_complexity_num + `Hospital Quality` + 
+                     median_household_income + percent_pop_over65 + pop_density +
+                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
 
+summary(lm_hospitals8)
+
+lm_hospitals9 <- lm(data = primary_regression_data,
+                   formula = percent_medicare ~ n_hosp_10mi_procedure + typical_patient_complexity_num + `Hospital Quality` + 
+                     median_household_income + percent_pop_over65 + pop_density +
+                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
+
+summary(lm_hospitals9)
+
+lm_hospitals10 <- lm(data = primary_regression_data,
+                   formula = percent_medicare ~ n_hosp_25mi_procedure  + typical_patient_complexity_num + `Hospital Quality` + 
+                     median_household_income + percent_pop_over65 + pop_density +
+                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + factor(procedure))
+
+summary(lm_hospitals10)
+
+glimpse(primary_regression_data)
 ```
 
 ### Abstract
@@ -666,7 +759,7 @@ The market for health services (often provided through hospitals) is unique in t
 Thus, payers and providers engage in bilateral negotiations where both are price setters rather than price takers. I assume the following: both the provider and the payer want to maximize the number of patients they serve and their profit margins per patient, even if the provider is a non-profit (Horwitz 2005). Providers want to receive higher prices for their services but also to be included in payers' networks, as patients face lower out-of-pocket costs when going to providers in network. Payers want to pay lower prices for providers’ services to minimize their costs but also want to attract enrollees by including convenient providers in their network, which is an important aspect of plan selection for individuals (Ho 2006). Thus, this is the bargaining environment in which bilateral hospital-insurer contracts are negotiated and the work below examines the impact on prices.
 
 ### Empirical Approach
-My analysis seeks to identify whether the market power of hospitals and insurers is related to variation in the prices private insurers pay for hospital services. The first section focuses insurer market power and the second on hospital market power. I restrict my analyses only to radiology services, which are among some of the most common outpatient procedures, and to hospitals (excluding ambulatory care centers, clinics, specialist practices, etc.). 
+My analysis seeks to identify whether the market power of hospitals and insurers is related to variation in the prices private insurers pay for hospital services. The first section focuses insurer market power and the second on hospital market power. I restrict my analyses only to radiology services, which are among some of the most common outpatient procedures, only to hospitals (excluding ambulatory care centers, clinics, specialist practices, etc.), and only to the three major private insurers and Medicare (to provide a base price). This leaves me with 33 services, 31 hospitals, and 2,308 observations as I do not have prices for all four insurers and all 33 services at each each hospital.
 
 Radiology services (CT scans, MRIs, ultrasounds, x-rays, etc.) generally involve the use of an imaging device to capture an image which is then read (examined) by a radiologist who reports their findings to the patient or patient's doctor. The initial cost of purchasing one of these imaging devices may vary somewhat, but the per unit cost of procuring and reading an image is likely to be similar across providers once controlling for wages. Within hospitals, there should be very little deviation in per unit costs. Furthermore, the quality of radiology services may potentially vary across hospitals, but within each hospital, this quality is plausibly assumed constant.
 
@@ -680,82 +773,87 @@ The first estimation is interested in determining whether there is a statistical
 
 $$y_{ijh} = \sum_{n \epsilon N} \gamma_n \left[{insurer_n}\right] + \delta_j + \lambda_h + \varepsilon_{ijh}$$
 
-where $N$ is the set of private insurers (Anthem, Harvard Pilgrim, CIGNA), and ${insurer_n}$ is an indicator variable that takes on the value of 1 or 0. The coefficient $\gamma_n$ therefore denotes the percentage of the medicare price insurer $n$ is estimated to pay, and the three resulting coefficients of the summation (one for each insurer) are the primary coefficients of interest. The regression also includes procedure fixed effects $\delta_j$ and hospital fixed effects $\lambda_h$ so that the price for the same procedure at the same hospital can be compared among the commercial insurers. The error term is denoted by $\varepsilon_{ijh}$.
+where $N$ is the set of private insurers (Anthem, Harvard Pilgrim, CIGNA), and ${insurer_n}$ is an indicator variable that takes on the value of 1 or 0. The coefficient $\gamma_n$ therefore denotes the percentage of the medicare price insurer $n$ is estimated to pay, and the three resulting coefficients of the summation (one $\gamma_i$ for each insurer) are the primary coefficients of interest. The regression also includes procedure fixed effects $\delta_j$ and hospital fixed effects $\lambda_h$ so that the price for the same procedure at the same hospital can be compared among the commercial insurers. The error term is denoted by $\varepsilon_{ijh}$.
+
+This estimation is unable to directly make any claims regarding the magnitude of the relationship between the market power of insurer $i$ and the price of procedure $j$ at hospital $h$, because I only have the state-wide market shares of each insurer. An analysis to truly test the effect of market power would require knowing the market power of each insurer within hospital $h$'s market, which may not be distributed as the state-wide shares are, and identifying this relationship the prices negotiated between insurer $i$ and hospital $h$ given insurer $i$'s market share in hospital $h$'s market, but I do not have this information. However, in my analysis the relative magnitude of the coefficients $\gamma_i$ and their statistical significance suggest the potential direction of this relationship. That is, each insurer's state-wide market share is known and can be ranked from largest to smallest, and a negative relationship between the size of the insurer's statewide market share and the magnitude of $\gamma_i$ suggests that larger insurers may negotiate cheaper prices, potentially as a function of their market power.
 
 The second set of estimations concerns how the market power of each hospital relates to the price (as a percentage of the Medicare price) for a particular service that that hospital negotiates with each insurer. Essentially, the hospital fixed effects variable Equation (2) is broken apart into various observable measures relating to a particular hospital and its market, resulting in the following linear model:
 
 $$y_{ijh} = \zeta_i + \delta_j + \alpha m_h + \beta x_h + \varepsilon_{ijh}$$
 
-where $\zeta_i$ replaces the summation in Equation (2) and denotes insurer fixed effects; $\delta_j$ denotes procedure fixed effects as in Equation (2); $m_h$ represents the number of hospitals in hospital $h$'s market and $x_h$ is a vector of hospital characteristics such as hospital quality (from CMS Hospital Compare data), median household income in the hospital's county, percentage of person's over 65 years of age in the hospital's county, and the population density of the hospital's county ( [2017 US Census Data](https://www.census.gov/quickfacts/fact/map/US/INC110217) ).
+where $\zeta_i$ replaces the summation in Equation (2) and denotes insurer fixed effects; $\delta_j$ denotes procedure fixed effects as in Equation (2); $m_h$ represents the number of hospitals in hospital $h$'s market and $x_h$ is a vector of hospital characteristics defined as follows:
 
-A hospital's market is defined differently across several specifications. Two common definitions of a hospital's market in the literature are it's Hospital Service Area (HSA) and it's Hospital Referral Region (HRR), both defined and made publicly available by the [Dartmouth Atlas of Health Care](http://archive.dartmouthatlas.org/tools/downloads.aspx?tab=39). An HSA dilineates a local market for hospital care, composed of a collection of ZIP codes whose residents receive most of their hospitalizations from the hospitals in that area. Most HSAs contain only one hospital. An HRR dilineates regional health care markets for tertiary medical care and each contains at least one hospital that performs major cardiovascular procedures and neurosurgery. HRRs were largely defined by assigning HSAs to the region where the greatest proportion of major cardiovascular procedures were performed. My dataset contains 29 unique HSAs and 4 unique HRRs.
+$$x_h = \eta_{jh} + \vartheta_h + \mu_c + \rho_c + \phi_c$$ 
 
-For both the HSA and HRR market definitions, I calculate the total number of hospitals within each hospital's market as well as the number of hospitals that also provide the same service within the market. 
+where $\eta_{jh}$ denotes the typical patient complexity for procedure $j$ at hospital $h$; $\vartheta_h$ denotes overall hospital quality as provided through the CMS Hospital Compare data; $\mu_c$ represents the median household income in the hospital's county $c$; $\rho_c$ represents the percentage of person's over 65 years of age in the hospital's county; and $\phi_c$ denotes the population density of the hospital's county. Data for $\mu_c$, $\rho_c$, and $\phi_c$ comes from the [2017 US Census](https://www.census.gov/quickfacts/fact/map/US/INC110217).
 
+A hospital's market $m_h$ is defined differently across several specifications. I first use two common definitions for a hospital's market in the literature: it's Hospital Service Area (HSA) and it's Hospital Referral Region (HRR), both defined and made publicly available by the [Dartmouth Atlas of Health Care](http://archive.dartmouthatlas.org/tools/downloads.aspx?tab=39). An HSA dilineates a local market for hospital care, composed of a collection of ZIP codes whose residents receive most of their hospitalizations from the hospitals in that area. For the most part, this calculation is based on assigning each ZIP code to the area where the greatest proportion of its Medicare patients were hospitalzed. Most HSAs contain only one hospital. An HRR dilineates regional health care markets for tertiary medical care and each contains at least one hospital that performs major cardiovascular procedures and neurosurgery. HRRs were largely defined by assigning HSAs to the region where the greatest proportion of major cardiovascular procedures were performed. My dataset contains 29 unique HSAs and 4 unique HRRs. 
 
-### Robustness Checks 
+For both the HSA and HRR market definitions, I count the total number of hospitals within each hospital's market as well as the number of hospitals that also provide the same service/procedure within that market. This attempts to isolate whether the hospital is truly competing with other hospitals in its market in providing procedure $j$ or whether it may be the only hospital in its market providing that service and therefore faces no competitors. While the 33 radiology services I have restricted my analysis to are quite common, I do not have at least one price observation available for all 33 procedures at all hospitals from the HealthCost data. Thus it is possible, though unlikely, that hospitals for which HealthCost does not have a price for a particular service may not offer that service, or provide it so infrequently that they do not really compete with other hospitals for its provision.  Most hospitals however do provide at least half of the services within the and there does not appear to be a consistent set of services for which price data is missing at many hospitals.
+
+The second set of market definitions I use are based on geographical radii drawn around each hospital. As with the HSA/HRR market definitions, I count the total number of hospitals as well as the number of hospitals that also provide the same service/procedure within a 25 mile, 10 mile, and 5 mile radius of each hospital $h$. As the services being examined are all outpatient services, the HSA/HRR definitions may not truly capture the potential patient population and potential competitors because they are calculated on the basis of hospitalization (inpatient) events. For outpatient services, patients may be able to exercise more choice in which hospitals they go to and therefore place greater weight on convenience and distance to the hospital, so this radial measure of a hospital's market may be more applicable to consumers' choices in the outpatient setting.
+
+The primary coefficient of interest in this second set of regressions is $\alpha$ which reveals how hospital competition may be related to prices. If $\alpha$ is negative, this suggests that the more hospital competition there is within a hospital's market, the lower the prices or, alternatively, the greater market power a hospital has, the higher its prices.
 
 
 
 
 ## Results
-### Price Variation Patterns Across Major Private Insurers
-The following boxplot depicts the various distributions of estimated prices for each payer-type across all 32 radiology services available on NH HealthCost.
-```{r, echo=FALSE, fig.align='center'}
-primary_data %>% 
-  filter(!cpt_code %in% c("29826", "29881", "42820", "43239", "45378", "45380", "45385", "51798", "85027", "99282", "99283"),
-         !insurer %in% c("Other", "Medicare")) %>% 
-  ggplot(aes(x = fct_reorder(insurer, percent_medicare), y = percent_medicare, fill = insurer)) + 
-  geom_boxplot(show.legend = FALSE) +
-  scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
-                               "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080")) +
-  coord_flip() +
-  scale_y_continuous(name = "Percent Medicare", labels = percent) +
-  scale_x_discrete(name = "Insurer") +
-  labs(title = "Distribution of Cost Estimates Across Major Private Payers", subtitle = "Radiology services") +
-  theme_tufte()
-```
-
-The results are listed below and show that Anthem pays on average 633.3% of Medicare prices, Harvard Pilgrim pays 688.1%, and CIGNA pays 756.5% for the exact same service at the same hospital.
-```{r, echo=FALSE, results = "asis", fig.align='center'}
-knitr::opts_chunk$set(echo = FALSE)
-stargazer(lm_insurers, omit = c(4:172), 
+The first set of results presented in Table 1 demonstrate that there are statistically significant differences in the prices paid by each insurer for a particular service at a particular hospital. The coefficients (presented as the average percentage of the Medicare price that insurer pays) suggest that on average Anthem pays 6.43 times the Medicare price, Harvard Pilgrim pays 7.04 times the Medicare price, and CIGNA 7.92 times the Medicare price. 
+```{r, echo=FALSE, results = "asis", fig.align='center', message=FALSE}
+stargazer(lm_insurers, omit = c(4:172), header = FALSE,
           title = "Insurance Carrier and Relative Prices",
           covariate.labels = c("Anthem NH", "Harvard Pilgrim HC", "CIGNA"), 
           dep.var.labels = "Percent of Medicare Price")
 
 ```
+The positive direction of the coefficients is unsurprising as Medicare consistently reimburses providers at much lower rates than do private insurers; however the magnitude of the coefficients is somewhat large compared to prior literature, which usually finds private insurer rates to be somewhere betwee 150-200% of Medicare rates largely in the context of inpatient services. Nonetheless, the meaning of these results is not necessarily diminished. Among the inpatient services they examine, Cooper et al. (2015) find the greatest disparity in Medicare versus private reimbursement for lower limb MRIs, the only radiology service they consider (private insurers pay on average 4 times the Medicare price in their sample), so perhaps Medicare is particularly able to set low prices for radiology services given the low per-unit cost of radiology services. Additionally, the price data from HealthCost reflects "bundled" prices as detailed in the Data portion of this paper, so they may be somewhat inflated compared to the Medicare prices. Importantly however, HealthCost bundles payments in the same way across all three private insurers and therefore the variation in the prices paid by each insurer is unaffected by this imperfect standardization to the Medicare price.
 
-### Price Variation Patterns and Hospital Concentration
-```{r, echo=FALSE, results = "asis"}
-stargazer(lm_hospitals4, lm_hospitals5, lm_hospitals6, lm_hospitals7, omit = c(11:170),  
-          title = "Number of Hospitals in Market (HSA/HRR definition) and Relative Price",
+While definitive conclusions about the effect of insurer market power cannot be made from these results given the limitations mentioned in the Empirical Approach, they do suggest that the larger the market share of the insurer, and therefore the larger its market power, the lower the prices that insurer pays at each hospital for a given procedure. Anthem, with the largest share of the market, pays less on average than both Harvard Pilgrim and CIGNA; Harvard Pilgrim, which is smaller than Anthem but bigger than CIGNA, pays somewhere between the Anthem and CIGNA price on average; and CIGNA, the smallest of the major insurers, consistently pays much more than both Anthem and Harvard Pilgrim.
+
+The second set of regressions presented in Tables 2-5 suggest that the number of hospitals in a hospital's market is negatively related to price at a statistically significant level when defining the hospital's market as a radius of 25 miles, reducing prices by 19-26% on average depending on whether competitors are defined as other hospitals offering the same service or not. For all other definitions of a hospital's market, the effect is often negative but not statistically different from zero. 
+```{r, echo=FALSE, results = "asis", message=FALSE}
+stargazer(lm_hospitals1, lm_hospitals2, omit = c(9:170), header = FALSE, 
+          title = "Total Number of Hospitals in Market (HSA/HRR definition) and Relative Price",
           covariate.labels = c("Total Number in HSA",
                                "Total Number in HRR",
-                               "Number in HSA offering procedure",
-                               "Number in HRR offering procedure",
-                               "Typical Patient Complexity - Low",
-                               "Typical Patient Complexity - Medium", 
-                               "Overall Hospital Rating - 3",
-                               "Overall Hospital Rating - 4",
-                               "Overall Hospital Rating - 5",
-                               "Overall Hospital Rating - NA",
+                               "Typical Patient Complexity", 
+                               "Hospital Quality",
                                "Median Household Income (county)",
                                "% Population 65 and older (county)",
                                "Population Density (county)"), 
           dep.var.labels = "Percent of Medicare Price")
 
-stargazer(lm_hospitals1, lm_hospitals2, lm_hospitals3, omit = c(11:170),  
-          title = "Number of Hospitals in Market (radial definition) and Relative Price",
+stargazer(lm_hospitals3, lm_hospitals4, omit = c(9:170),  
+          title = "Number of Hospitals in Market (HSA/HRR definition) Offering Procedure and Relative Price",
+          covariate.labels = c("Number in HSA offering procedure",
+                               "Number in HRR offering procedure",
+                               "Typical Patient Complexity", 
+                               "Hospital Quality",
+                               "Median Household Income (county)",
+                               "% Population 65 and older (county)",
+                               "Population Density (county)"), 
+          dep.var.labels = "Percent of Medicare Price")
+
+stargazer(lm_hospitals5, lm_hospitals6, lm_hospitals7, omit = c(11:170),  
+          title = "Total Number of Hospitals in Market (radial definition) and Relative Price",
           covariate.labels = c("Number of Hospitals in 5 mile radius",
                                "Number of Hospitals in 10 mile radius",
                                "Number of Hospitals in 25 mile radius",
-                               "Typical Patient Complexity - Low",
-                               "Typical Patient Complexity - Medium", 
-                               "Overall Hospital Rating - 3",
-                               "Overall Hospital Rating - 4",
-                               "Overall Hospital Rating - 5",
-                               "Overall Hospital Rating - NA",
+                               "Typical Patient Complexity", 
+                               "Hospital Quality",
+                               "Median Household Income (county)",
+                               "% Population 65 and older (county)",
+                               "Population Density (county)"), 
+          dep.var.labels = "Percent of Medicare Price")
+
+stargazer(lm_hospitals8, lm_hospitals9, lm_hospitals10, omit = c(11:170),  
+          title = "Number of Hospitals in Market (radial definition) Offering Procedure and Relative Price",
+          covariate.labels = c("Hospitals with procedure in 5 mile radius",
+                               "Hospitals with procedure in 10 mile radius",
+                               "Hospitals with procedure in 25 mile radius",
+                               "Typical Patient Complexity", 
+                               "Hospital Quality",
                                "Median Household Income (county)",
                                "% Population 65 and older (county)",
                                "Population Density (county)"), 
@@ -763,7 +861,7 @@ stargazer(lm_hospitals1, lm_hospitals2, lm_hospitals3, omit = c(11:170),
 
 
 ```
-
+These results suggest that, under a certain definition of the market, the greater the number of hospitals in a hospital's market, the lower the prices at that hospital are, or, alternatively, the greater a hospital's market power, the higher the prices at that hospital. This is 
 
 
 
