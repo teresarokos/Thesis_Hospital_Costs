@@ -365,7 +365,8 @@ ggplot(data = health_expenditures) +
                                                                 "percent_hce" = "red", 
                                                                 "percent_pcse" = "gray", 
                                                                 "percent_pde" = "light gray"),
-                    labels = c("Total National Health Expenditure", "Hospital Care", "Physician and Clinical Services", "Prescription Drugs"))
+                    labels = c("Total National Health Expenditure", "Hospital Care", "Physician and Clinical Services", "Prescription Drugs")) +
+  theme_tufte()
 ```
  
 Given that the largest portion of Americans (49%) receive health care coverage from their employer through private insurance plans rather than through Medicare and Medicaid (Kaiser Family Foundation 2017), this price variation between different private insurers/hospital contracts affects what many Americans pay in premiums and out of pocket for their healthcare. Moreover, prior research such as Cooper et al. 2015 finds that this variation persists even when costs and quality are arguably held constant. 
@@ -381,7 +382,7 @@ Section II of this paper provides background on the New Hampshire market for hea
 
 ## Background on the New Hampshire Market
 ### Health Insurance Coverage
-New Hampshire is a small state (8,953 sqaure miles) with a population of 1.343 million (90.5% white) and median household income of $71,305 (Census Bureau 2017). Additionally, 17.6% of the population is over the age of 65, which is slightly higher than the national average of 15.6% (Census Bureau 2017). Figures 2 and 3 depict the insurance status of New Hampshire residents in 2017 and the market share of major private insurers, respectively. According to the New Hampshire Insurance Department, a total of 543,900 members were enrolled in commercial market plans in 2017 in the state, and 81% received coverage through employer-sponsored insurance plans (11.0% Individual Market, 7.7% NH PAP, 12.6% Small Group, 19.8% Large Group Fully Insured, and 48.9% Large Group Self Insured). 
+New Hampshire is a small state (8,953 sqaure miles) with a population of 1.343 million (90.5% white) and median household income of $71,305 (Census Bureau 2017). Additionally, 17.6% of the population is over the age of 65, which is slightly higher than the national average of 15.6% (Census Bureau 2017). Figures 2.1 and 2.2 depict the insurance status of New Hampshire residents in 2017 and the market share of major private insurers, respectively. According to the New Hampshire Insurance Department, a total of 543,900 members were enrolled in commercial market plans in 2017 in the state, and 81% received coverage through employer-sponsored insurance plans (11.0% Individual Market, 7.7% NH PAP, 12.6% Small Group, 19.8% Large Group Fully Insured, and 48.9% Large Group Self Insured). 
 ```{r, echo=FALSE}
 
 # Creating dataframe on insurance status in NH from NH Insurance department, first creating columns
@@ -437,7 +438,7 @@ private_insurance %>%
 ### New Hampshire Providers
 New Hampshire has a total of 31 hospitals and 3,503 beds within the state (New Hampshire Hospital Association 2018). According to the New Hampshire Hospital Association, 13 of these hospitals with 2,704 beds total are Prospective Payment Systems (PPS) Hospitals, which take prospective payments from Medicare; 13 hospitals with 301 beds total are Critical Access Hospitals (CAH), which serve rural populations and therefore are eligible to receive certain benefits from Medicare such as cost-based reimbursement for Medicare services; 5 hospitals with 498 beds total are Specialty Hospitals, which provide a specialized category of services (such as children’s hospitals, orthopedic hospitals, cancer hospitals, etc.) and are omitted from my analysis for lack of price information. While categorized by Medicare reimbursements, all of the hospitals included in my analysis serve privately insured individuals in addition to Medicare patients.
 
-In addition to the 26 New Hampshire hospitals, there are 6 out-of-state hospitals included in my analysis which are located close to New Hampshire's borders: Anna Jaques Hospital, Lawrence General Hospital, and Lowell General Hospital (Massachusetts); Bridgton Hospital and York Hospital (Maine); and Northeastern Vermont Regional Hospital (Vermont). Furthermore, there are 99 non-hospital providers such as ambulatory surgical centers, clinics, and private phsycian groups that also provide some of the relevant outpatient procedures. Though the focus of the analysis will be on hospitals, I include these non-hospital providers in Figure 4 for context.
+In addition to the 26 New Hampshire hospitals, there are 6 out-of-state hospitals included in my analysis which are located close to New Hampshire's borders: Anna Jaques Hospital, Lawrence General Hospital, and Lowell General Hospital (Massachusetts); Bridgton Hospital and York Hospital (Maine); and Northeastern Vermont Regional Hospital (Vermont). Furthermore, there are 99 non-hospital providers such as ambulatory surgical centers, clinics, and private phsycian groups that also provide some of the relevant outpatient procedures. Though the focus of the analysis will be on hospitals, I include these non-hospital providers in Figure 3 for context.
 ```{r, echo=FALSE, out.width="100%", message=FALSE, warning=FALSE}
 
 # attempt at plotly map
@@ -464,41 +465,8 @@ plotly_nh_hospitals
 
 There has only been one official hospital merger involving a hospital in New Hampshire: Massachusetts General Hospital (MGH)/Partners HealthCare from Massachusetts acquired Wentworth-Douglass on January 1, 2017. However, if two pending quasi-mergers go through, "22 out of New Hampshire's 26 acute-care hospitals will have established some kind of organizational connection with other institutions, often mergers in all but name" ( [Concord Monitor Jan 26, 2019](https://www.concordmonitor.com/hospitals-merge-followup-23005911) ). In May 2018 Partners HealthCare also made a bid to acquire Exeter Health Resources, and this merger is still pending approval.
 
-<br>
-
-## Data
-### Raw data from NH HealthCost
-The primary source of data on hospital prices comes from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) which is a publicly available tool that provides insurer-hospital specific estimations of total costs (reimbursements) for a long list of outpatient services and procedures, each assigned a Current Procedural Terminology (CPT) code. New Hampshire is among a handful of states that make such information publicly available, hence why I use it as a case study for my analysis. All cost information is based on claims data collected in the New Hampshire Comprehensive Healthcare Information System, which unfortunately I was unable to access directly. On the NH HealthCost website, the average amount each insurer pays for a given service at a given hospital is available, and it is reasonable to assume that this is roughly equivalent to the price each hospital and insurance carrier have negotiated for each service. This allowed me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. 
-
-### CMS Data
-The Center for Medicaid and Medicare Services (CMS) provides several useful data sets that aid my analysis. The first is the Physician Fee Schedule (PFS) [2018 Relative Value file](https://www.cms.gov/Medicare/Medicare-Fee-for-Service-Payment/PhysicianFeeSched/PFS-Relative-Value-Files.html) which allows me to construct the Medicare reimbursement rates at each hospital for each service observed in the NH HealthCost data. I am able to calculate the 2018 Medicare Facility Pricing Amount for each CPT code (each procedure) at the locality level using  the following formula:
-
-<br>
-
-<center> __2018FacilityPricingAmount = [(WorkRVU x WorkGPCI) + (FacilityPERVU x PEGPCI) + (MPRVU x MPGPCI)] x ConversionFactor__ </center>
-
-<br>
-
-Medicare treats all of New Hampshire as one locality, meaning that all hospitals in New Hampshire that are reimbursed through prospective payments are reimbursed the same amount for outpatient services through Medicare Part B. However, 13 out of the 32 hospitals in my dataset are Critical Access Hospitals (CAHs) that are elligible to receive cost-based reimbursements from Medicare. I was unable to obtain data on exactly how much these CAHs are reimbursed by CPT code and therefore use the prospective payment rates as an approximation for what they are reimbursed by Medicare. This should not have a major impact on the analysis as the focus is on private insurers, and I primarily use Medicare prices for the purposes of standardization of the private insurer prices available through NH HealthCost. 
-
-The second dataset provided by CMS is the [Hospital Compare data](https://data.medicare.gov/data/hospital-compare) which provides measures of quality. The hospital overall ratings show the quality of care a hospital may provide compared to other hospitals based on the quality measures reported on Hospital Compare, summarizing into a single rating more than 60 measures in seven measure groups: mortality, safety of care, readmission, patient experience, effectiveness of care, timeliness of care, and efficient use of medical imaging.
-
-<br>
-
-## Empirical Framework
-### Theoretical Framework
-In standard micro-economic theory, one learns that prices reflect supply and demand; in a perfectly competitive market, the supply curve is largely determined by each firm's costs of production and the demand curve determined by consumer preferences and budget constraints. In this standard model, there are no profits as both producers and consumers are price takers. However, a more realistic model allows for the possibility of profits, therefore encouraging firm entry to the industry, by admitting firms may exercise some monopolist or market power.
-
-Market power is largely a function of the number of other firms in the market, but a firm may also generate market power for itself through distiguishing it's product from others. When it's product differs from others in the market, a firm can act as a quasi-monopolist, price setter and extract a certain mark-up from consumers who have a preference for that difference and are price takers. As consumers often have a preference for quality or some aspect of quality, firms that can best distinguish their product as being of higher quality than others are more able to demand higher prices for their product(s).
-
-The market for health services (often provided through hospitals) is unique in that there are two components of demand: individuals and payers. Even this is somewhat of an oversimplification in the US market because many individuals are privately insured through their employer which contracts with a private insurer. However, for the most part, it is insurer-provider price negotiations that determine the price of care; private insurers negotiate contracts with each provider (Medicare and Medicaid set their prices at a regional level) and also dictate how much the individual or family must pay in premiums and out of pocket for each episode of care. This gives private insurers some form of monopsony power in price negotiations as there are often only a few of private insurers present in each market and they can choose whether or not to include each provider in their network, affecting the prices individual/families face for care. 
-
-Thus, payers and providers engage in bilateral negotiations where both are price setters rather than price takers. I assume the following: both the provider and the payer want to maximize the number of patients they serve and their profit margins per patient, even if the provider is a non-profit (Horwitz 2005). Providers want to receive higher prices for their services but also to be included in payers' networks, as patients face lower out-of-pocket costs when going to providers in network. Payers want to pay lower prices for providers’ services to minimize their costs but also want to attract enrollees by including convenient providers in their network, which is an important aspect of plan selection for individuals (Ho 2006). Thus, this is the bargaining environment in which bilateral hospital-insurer contracts are negotiated and the work below examines the impact on prices.
-
-### Methodology
-My analysis seeks to identify whether the market power of hospitals and insurers is related to variation in the prices private insurers pay for hospital services and is divided into two primary stages: the first focuses insurer market power and the second on hospital market power. 
-
-First to provide some context of the variation that exists in New Hampshire, I present boxplot distributions of procedure prices in Figures 5.1 and 5.2 for ten common procedures in New Hampshire. I indentify these procedures using 2016 data from the [New Hampshire Hospital Association](https://www.nhha.org/images/Data/Outpatient-CPT-List-2016.pdf) and further narrow their list of 82 (out of thousands) down to 10 of the most expensive services for which I can obtain prices from NH HealthCost. Figure 5.1 includes payments by the uninsured, private insurers, and Medicare  for these common procedures, and Figure 5.2 only shows the payments made by private insurers. All price data presented reflect 2018 prices. Significant variation exists in the prices paid for the same procedure or service, even when only considering the privately insured, and this may be expected if costs and quality vary across hospitals.
+### Price variation in the New Hampshire Market
+Large price variation exists in New Hampshire, and I present boxplot distributions of procedure prices in Figures 4.1 and 4.2 for ten common outpatient procedures in New Hampshire. I indentify these procedures using 2016 data from the [New Hampshire Hospital Association](https://www.nhha.org/images/Data/Outpatient-CPT-List-2016.pdf) and further narrow their list of 82 (out of thousands) down to 10 of the most expensive services for which I have price estimates for private insurers. Figure 4.1 includes payments by the uninsured, private insurers, and Medicare  for these common procedures, and Figure 4.2 only shows the payments made by private insurers. All price data presented reflect 2018 prices. Significant variation exists in the prices paid for the same procedure or service, even when only considering the privately insured, and this may be expected if costs and quality vary across hospitals.
 
 ```{r, message=FALSE, echo=FALSE, fig.align='center', warning=FALSE, message=FALSE}
 primary_data %>% 
@@ -509,7 +477,7 @@ primary_data %>%
   scale_y_continuous(name = "Price Estimate", labels = dollar) +
   scale_fill_brewer() +
   facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
-  labs(title = "Figure 5.1: Price Variation for 10 Common Outpatient Procedures (NH)", 
+  labs(title = "Figure 4.1: Price Variation for 10 Common Outpatient Procedures (NH)", 
        subtitle = "Uninsured, Private Insurers, and Medicare") +
   theme_tufte() +
   theme(axis.title.y = element_blank(),
@@ -526,7 +494,7 @@ primary_data %>%
   scale_y_continuous(name = "Price Estimate", labels = dollar) +
   scale_fill_brewer() +
   facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
-  labs(title = "Figure 5.2: Price Variation for 10 Common Outpatient Procedures (NH)", 
+  labs(title = "Figure 4.2: Price Variation for 10 Common Outpatient Procedures (NH)", 
        subtitle = "For the Top Three Private Insurers (Anthem, CIGNA, & Harvard Pilgrim)") +
   theme_tufte() +
   theme(axis.title.y = element_blank(),
@@ -534,9 +502,7 @@ primary_data %>%
 	        axis.ticks.y = element_blank())
 ```
 
-While the price variation for these ten procedures provides relevant context, for the remainder of the paper I restrict my analysis only to radiology services, which are among some of the most common outpatient procedures. Radiology services (CT scans, MRIs, ultrasounds, x-rays, etc.) generally involve the use of an imaging device to capture an image which is then read (examined) by a radiologist who reports their findings to the patient or patient's doctor. The initial cost of purchasing one of these imaging devices may vary somewhat, but the per unit cost of procuring and reading an image is likely to be similar across providers once controlling for wages. Within hospitals, there should be very little deviation in per unit costs. Furthermore, the quality of radiology services may potentially vary across hospitals, but within each hospital, this quality is plausibly assumed constant.
-
-Nonetheless, price variation persists even when costs and quality are reasonably assumed fixed within the same hospital. Controlling for procedure, across hospital price variation accounts for 16.4% of the total variation but *within* hospital price variation accounts for a further 17.0% of the total. For the same service at the same hospital, different payers are charged vastly different amounts. Figures 6.1 and 6.2 show the different prices paid by the three major private payers in New Hampshire (Anthem NH, CIGNA, and Harvard Pilgrim Health Care) at the same hospital for a transvaginal ultrasound and a spine x-ray (two very common radiology services), respectively. All hospitals in Figure 6.1 have a difference of at least \$150 in the price paid by the highest private payer and that paid by the lowest private payer. In three of these hospitals (St. Joseph Hospital, Anna Jaques Hospital, and Foundation Medical Partners), the highest payer is paying more than twice the amount the lowest payer is paying. For all of the hospitals in Figure 6.2, there is a difference of at least \$100 between the highest and lowest payers.
+This variation persists even when costs and quality are reasonably assumed fixed within the same hospital. Controlling for procedure, across hospital price variation accounts for 16.4% of the total variation but *within* hospital price variation accounts for a further 17.0% of the total. For the same service at the same hospital, different payers are charged vastly different amounts. Figures 5.1 and 5.2 show the different prices paid by the three major private payers in New Hampshire (Anthem NH, CIGNA, and Harvard Pilgrim Health Care) at the same hospital for a transvaginal ultrasound and a spine x-ray (two very common radiology services), respectively. All hospitals in Figure 5.1 have a difference of at least \$150 in the price paid by the highest private payer and that paid by the lowest private payer. In three of these hospitals (St. Joseph Hospital, Anna Jaques Hospital, and Foundation Medical Partners), the highest payer is paying more than twice the amount the lowest payer is paying. For all of the hospitals in Figure 5.2, there is a difference of at least \$100 between the highest and lowest payers.
 ```{r, include=FALSE}
 
 regression_data <- primary_data %>% 
@@ -564,7 +530,7 @@ primary_data %>%
   filter(range > 150) %>% 
   ungroup() %>% 
   ggplot(aes(x = fct_reorder(provider_name, estimate_of_total_cost), y = estimate_of_total_cost, fill = insurer)) +
-  geom_col(position = "dodge", width = 0.5, show.legend = FALSE) +
+  geom_col(position = "dodge", width = 0.5) +
   scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
                                "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080"), name = "Insurer") +
   scale_y_continuous(name = "Price Estimate", labels = dollar) +
@@ -598,21 +564,72 @@ primary_data %>%
 ```
 </div>
 
-It is unlikely that the cost of providing each of these services and the quality of each of these services within the same hospital should vary with patients' insurance coverage. That is, it should be no more costly from the hospital's point of view to perform a spine x-ray on a patient covered by CIGNA as opposed to a patient covered by Anthem, and hospitals should not provide higher quality spine x-rays to CIGNA covered patients than they do to Anthem patients. Thus, the first stage of my analysis will focus on price variation across the major private insurers, and the second stage will examine how the size of a hospital's market and its institutional affiliations affects the its ability to charge certain prices and charge different prices to different insurers.
+It is unlikely that the cost of providing each of these services and the quality of each of these services within the same hospital should vary with patients' insurance coverage. That is, it should be no more costly from the hospital's point of view to perform a spine x-ray on a patient covered by CIGNA as opposed to a patient covered by Anthem, and hospitals should not provide higher quality spine x-rays to CIGNA covered patients than they do to Anthem patients. Thus my analysis explores other potential sources of this variation, particularly those related to market power.
 
-
-### Price Variation Patterns Across Major Private Insurers
-The goal of this portion of the analysis is to determine whether there is a statistical difference between the prices hospitals charge Anthem, Harvard Pilgrim, and CIGNA in New Hampshire for the same service, with the context that Anthem composes 39% of the market, Harvard Pilgrim 27%, and CIGNA 20%. The first stage regression simply regresses dummy variables for each insurer on the price (as a percentage of Medicare) for each procedure denoted *CPT*:
-
-<center> __P*CPT* = B1\*Anthem + B2\*HarvardPilgrim + B3\*CIGNA + FixedEffects*CPT*__ </center>
-<br>
-This model however fails to account for quality variation in the hospitals each insurer choses to contract with. That is, one insurer may potentially contract with more higher quality hospitals and thus pay more on average than the other two insurers. In order to isolate the differences in prices for the exact same service, I modify my regression to include hospital fixed effects:
-
-<center> __P*CPT* = B1\*Anthem + B2\*HarvardPilgrim + B3\*CIGNA + FixedEffects*CPT* + FixedEffects*Hospital*__ </center>
 <br>
 
-### Price Variation Patterns and Hospital Concentration
-***For now,*** I restrict this second stage regression to only hospitals included in the Hospital Compare data set as these are hospitals that Medicare officially recognizes as Acute Care or Critical Access Hospitals. I then compare how the prices for each insurer varies with how many hospitals are within each hospital's market. I define a hospital's market as being within +/- 0.2 degrees of latitude and longitude of that hospital. I also include the median household income of the county obtained from [2017 US Census Data](https://www.census.gov/quickfacts/fact/map/US/INC110217).
+## Data
+### HealthCost Data
+The primary source of data on hospital prices comes from the New Hampshire Insurance Department [HealthCost website](https://nhhealthcost.nh.gov/costs/select) which is a publicly available tool that provides insurer-hospital specific estimations of costs for a long list of services and procedures. New Hampshire is among a handful of states that make such information publicly available, hence why I use it as a case study for my analysis. The cost estimates are calculated using claims data from the New Hampshire Comprehensive Healthcare Information System (NHCHIS) to determine the median amount that insurance carriers and patients pay for each service. The estimated costs therefore reflect the rates negotiated between health care providers and insurance carriers (often referred to as the "allowable amount") rather than provider charges, which have been shown to have little relation to what most privately insurered individuals actually pay for a given service. In addition, HealthCost estimates the prices faced by the uninsured based on charges minus any discount the provider may offer uninsured patients.
+
+For the services relevant to this paper (outpatient procedures and radiology services), the estimated prices may be "bundled" to include multiple services or independent providers; that is, the estimates aggregate the costs for what may be treatment received from several providers (billing separately) under the "lead provider" rather than distinguishing between what is paid to the facility versus the physicians who treat the patient. Price estimates for radiology services use a modified bundle that includes the facility and the professional fees associated with the patient receiving that service but not any other costs that the patient may have incurred on the same day. 
+
+Each service on HealthCost is identified with a description (e.g. "X-Ray - Abdomen") and one of the American Medical Association's Current Procedural Terminology (CPT) codes.  However, there are multiple CPT codes for an abdominal x-ray (different codes for different numbers of views), so the CPT codes for similar services are counted and the most common ones identified through the frequency distribution. From there, the representative CPT code and description is chosen based on what will be the simplest and most easily recognized procedure, and, when available, clinical insight is also considered. This means that in some cases, multiple CPT codes may be combined, as long as the cost is similar, under a single service. 
+
+Additionally, HealthCost includes indicators of variability for each estimate under the "Precision of the Cost Estimate" field, where "High" corresponds to cost estimates with little variability from one patient to the next, and risk-adjustment indicators under the "Typical Patient Complexity" field, which are evaluated for each hospital within that procedure. For example, a hospital may attract an average population when considering all procedures but a more complex population when only considering brain MRIs as compared to other hospitals. Thus, for brain MRIs, this hospital would have a "High" typical patient complexity. 
+
+The data available on HealthCost me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. I also keep values for "Typical Patient Complexity" and "Precision of the Cost Estimate" to use as controls in my analysis. 
+
+### CMS Data
+The Center for Medicaid and Medicare Services (CMS) provides several useful data sets on Medicare prices and hospital quality. Medicare sets all of it prices centrally, allowing for some variation across regions. For oupatient services, Medicare reimburses hospital by the services they provided. That is prices are provided at the CPT code level. This information is made public in the Physician Fee Schedule (PFS) [2018 Relative Value file](https://www.cms.gov/Medicare/Medicare-Fee-for-Service-Payment/PhysicianFeeSched/PFS-Relative-Value-Files.html), allowing me to construct the Medicare reimbursement rates at each hospital for each service observed in the HealthCost data by matching each hospital with a locality in the CMS data. I am able to calculate the 2018 Medicare Facility Pricing Amount $p_{2018}^{Medicare}$ for each procedure $j$ at the locality level $l$ using  the following formula:
+\[p_{jl, 2018}^{Medicare} = [({RVU}_{j}^{work}*{GPCI}_{l}^{work}) + ({RVU}_{j}^{PE}*{GPCI}_{l}^{PE}) + ({RVU}_{j}^{MP}*{GPCI}_{l}^{MP})]*{CF}_{2018} \] 
+where ${RVU}_{j}^{work}$ denotes the Relative Value Unit (RVU) for the physician work involved in providing procedure $j$, ${RVU}_{j}^{PE}$ denotes the RVU for the resource-based practice expense for the facility setting, and ${RVU}_{j}^{MP}$ denotes the RVU for the malpractice expense. ${GPCI}_{l}^{work}$ denotes the Geographic Practice Cost Index (GPCI) corresponding to locality $l$ and the work RVU, ${GPCI}_{l}^{PE}$ corresponds to the practice expense RVU, and ${GPCI}_{l}^{MP}$ corresponds to the malpractice RVU. ${CF}_{2018}$ denotes the 2018 conversion factor ($36.00).
+
+Medicare treats all of New Hampshire as one locality, meaning that all hospitals in New Hampshire that are reimbursed through prospective payments are reimbursed the same amount for outpatient services through Medicare Part B. However, 13 out of the 32 hospitals in my dataset are Critical Access Hospitals (CAHs) that are elligible to receive cost-based reimbursements from Medicare. I was unable to obtain data on exactly how much these CAHs are reimbursed by CPT code and therefore use the prospective payment rates as an approximation for what they are reimbursed by Medicare. This should not have a major impact on the analysis as the focus is on private insurers, and I primarily use Medicare prices for the purposes of standardization of the private insurer prices available through NH HealthCost. 
+
+
+The second dataset provided by CMS is the [Hospital Compare data](https://data.medicare.gov/data/hospital-compare) which provides measures of quality. The hospital overall ratings show the quality of care a hospital may provide compared to other hospitals based on the quality measures reported on Hospital Compare, summarizing into a single rating more than 60 measures in seven measure groups: mortality, safety of care, readmission, patient experience, effectiveness of care, timeliness of care, and efficient use of medical imaging.
+
+<br>
+
+## Empirical Framework
+### Theoretical Framework
+In standard micro-economic theory, one learns that prices reflect supply and demand; in a perfectly competitive market, the supply curve is largely determined by each firm's costs of production and the demand curve determined by consumer preferences and budget constraints. In this standard model, there are no profits as both producers and consumers are price takers. However, a more realistic model allows for the possibility of profits, therefore encouraging firm entry to the industry, by admitting firms may exercise some monopolist or market power.
+
+Market power is largely a function of the number of other firms in the market, but a firm may also generate market power for itself through distiguishing it's product from others. When it's product differs from others in the market, a firm can act as a quasi-monopolist, price setter and extract a certain mark-up from consumers who have a preference for that difference and are price takers. As consumers often have a preference for quality or some aspect of quality, firms that can best distinguish their product as being of higher quality than others are more able to demand higher prices for their product(s).
+
+The market for health services (often provided through hospitals) is unique in that there are two components of demand: individuals and payers. Even this is somewhat of an oversimplification in the US market because many individuals are privately insured through their employer which contracts with a private insurer. However, for the most part, it is insurer-provider price negotiations that determine the price of care; private insurers negotiate contracts with each provider (Medicare and Medicaid set their prices at a regional level) and also dictate how much the individual or family must pay in premiums and out of pocket for each episode of care. This gives private insurers some form of monopsony power in price negotiations as there are often only a few of private insurers present in each market and they can choose whether or not to include each provider in their network, affecting the prices individual/families face for care. 
+
+Thus, payers and providers engage in bilateral negotiations where both are price setters rather than price takers. I assume the following: both the provider and the payer want to maximize the number of patients they serve and their profit margins per patient, even if the provider is a non-profit (Horwitz 2005). Providers want to receive higher prices for their services but also to be included in payers' networks, as patients face lower out-of-pocket costs when going to providers in network. Payers want to pay lower prices for providers’ services to minimize their costs but also want to attract enrollees by including convenient providers in their network, which is an important aspect of plan selection for individuals (Ho 2006). Thus, this is the bargaining environment in which bilateral hospital-insurer contracts are negotiated and the work below examines the impact on prices.
+
+### Empirical Approach
+My analysis seeks to identify whether the market power of hospitals and insurers is related to variation in the prices private insurers pay for hospital services. The first section focuses insurer market power and the second on hospital market power. I restrict my analyses only to radiology services, which are among some of the most common outpatient procedures. Radiology services (CT scans, MRIs, ultrasounds, x-rays, etc.) generally involve the use of an imaging device to capture an image which is then read (examined) by a radiologist who reports their findings to the patient or patient's doctor. The initial cost of purchasing one of these imaging devices may vary somewhat, but the per unit cost of procuring and reading an image is likely to be similar across providers once controlling for wages. Within hospitals, there should be very little deviation in per unit costs. Furthermore, the quality of radiology services may potentially vary across hospitals, but within each hospital, this quality is plausibly assumed constant.
+
+My outcome variable of interest is the percentage of the price Medicare paid by individual with insurance $i$ for a particular procedure $j$ at a particular hospital $h$, denoted as $y_{ijh}$. That is, 
+
+(1) 
+
+\[y_{ijh} = \frac {p_{ijh}}{p_{ijh}^{Medicare}}\]
+
+where $p_{ijh}$ denotes the price a particular insurer pays for procedure $j$ at hospital $h$, and $p_{ijh}^{Medicare}$ denotes the price Medicare pays for the same service at the same hospital. As mentioned above, for some of the critical access hospitals, this may not be the rate at which Medicare actually reimburses the hospital because only the PFS rates are known, but the medicare price is merely used to standardize prices and therefore the analysis should be largely unaffected by this limitation.
+
+The first estimation is interested in determining whether there is a statistical difference between the prices hospitals charge Anthem, Harvard Pilgrim, and CIGNA in New Hampshire for the same service, with the context that Anthem (the largest commercial insurer) composes 39% of the commercial insurance market, Harvard Pilgrim 27%, and CIGNA (the smallest major commercial insurer) 20%. I estimate what percentage of the Medicare price each insurer pays using the following linear model:
+
+(2) 
+
+\[y_{ijh} = \sum_{n \epsilon N} \gamma_n \left[{insurer_n}\right] + \delta_j + \lambda_h + \varepsilon_{ijh}\]
+
+where $N$ is the set of private insurers (Anthem, Harvard Pilgrim, CIGNA), and ${insurer_n}$ is an indicator variable that takes on the value of 1 or 0. The coefficient $\gamma_n$ therefore denotes the percentage of the medicare price insurer $n$ is estimated to pay, and the three resulting coefficients of the summation (one for each insurer) are the primary coefficients of interest. The regression also includes procedure fixed effects $\delta_j$ and hospital fixed effects $\lambda_h$ so that the price for the same procedure at the same hospital can be compared among the commercial insurers. The error term is denoted by $\varepsilon_{ijh}$.
+
+The second set of estimations concerns how the market power of each hospital relates to the price (as a percentage of the Medicare price) for a particular service that that hospital negotiates with each insurer. Essentially, the hospital fixed effects variable Equation (2) is broken apart into various observable measures relating to a particular hospital and its market, resulting in the following linear model:
+
+(3) 
+
+\[y_{ijh} = \zeta_i + \delta_j + \alpha m_h + \beta x_h + \varepsilon_{ijh}\]
+
+where $\zeta_i$ replaces the summation in Equation (2) and denotes insurer fixed effects; $\delta_j$ denotes procedure fixed effects as in Equation (2); $m_h$ represents hospital $h$'s market power and $x_h$ is a vector of hospital characteristics such as hospital quality (from CMS Hospital Compare data), median household income in the hospital's county, percentage of person's over 65 years of age in the hospital's county, and population of the hospital's county ( [2017 US Census Data](https://www.census.gov/quickfacts/fact/map/US/INC110217) ).
+
+The hospital's market power $m_h$ is defined in a host of different ways.
 
 
 ### Robustness Checks
