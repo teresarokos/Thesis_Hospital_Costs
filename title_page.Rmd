@@ -13,13 +13,13 @@ output: pdf_document
 
 {\bf Market Power and Hospital Prices: Evidence from New Hampshire}
 
-\vspace{3 cm}
+\vspace{1.5 cm}
 
 \Large
 Teresa Rokos
 
 
-\vspace{3 cm}
+\vspace{1.5 cm}
 
 
 \normalsize
@@ -28,7 +28,7 @@ IN PARTIAL FULFILLMENT OF THE REQUIREMENTS FOR\\
 A BACHELOR OF ARTS DEGREE WITH HONORS\\
 
 
-\vspace{3 cm}
+\vspace{1.5 cm}
 
 \normalsize
 Harvard College
