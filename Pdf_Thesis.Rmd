@@ -192,10 +192,10 @@ primary_data <- primary_data %>%
   filter(!is.na(`ZIP Code`)) %>% 
   count(provider_name, procedure, hsanum, hrrnum) %>% 
   group_by(procedure, hsanum) %>% 
-  mutate(n_hosp_hsa_procedure = n()) %>% 
+  mutate(n_hosp_hsa_p = n()) %>% 
   ungroup() %>% 
   group_by(procedure, hrrnum) %>% 
-  mutate(n_hosp_hrr_procedure = n()) %>% 
+  mutate(n_hosp_hrr_p = n()) %>% 
   ungroup() %>% 
   select(-n, -hsanum, -hrrnum) %>% 
   right_join(primary_data, by = c("provider_name", "procedure"))
@@ -265,7 +265,7 @@ radial_markets_procedure <- primary_data %>%
 primary_data <- radial_markets_procedure %>% 
   filter(!is.na(hospital_rating2)) %>% 
   group_by(provider1, procedure) %>% 
-  summarize(n_hosp_25mi_procedure = n()) %>% 
+  summarize(n_hosp_25mi_p = n()) %>% 
   ungroup() %>% 
   rename(provider_name = provider1) %>% 
   right_join(primary_data, by = c("provider_name", "procedure"))
@@ -273,7 +273,7 @@ primary_data <- radial_markets_procedure %>%
 primary_data <- radial_markets_procedure %>% 
   filter(!is.na(hospital_rating2), distance <= 10) %>% 
   group_by(provider1, procedure) %>% 
-  summarize(n_hosp_10mi_procedure = n()) %>% 
+  summarize(n_hosp_10mi_p = n()) %>% 
   ungroup() %>% 
   rename(provider_name = provider1) %>% 
   right_join(primary_data, by = c("provider_name", "procedure"))
@@ -281,7 +281,7 @@ primary_data <- radial_markets_procedure %>%
 primary_data <- radial_markets_procedure %>% 
   filter(!is.na(hospital_rating2), distance <= 5) %>% 
   group_by(provider1, procedure) %>% 
-  summarize(n_hosp_5mi_procedure = n()) %>% 
+  summarize(n_hosp_5mi_p = n()) %>% 
   ungroup() %>% 
   rename(provider_name = provider1) %>% 
   right_join(primary_data, by = c("provider_name", "procedure"))
@@ -396,11 +396,21 @@ primary_regression_data <- primary_data %>%
   filter(!insurer %in% c("Uninsured", "Other"), !is.na(`ZIP Code`), !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283")) %>% 
   mutate(`Hospital Quality` = as.numeric(`Hospital overall rating`))
 
-lm_insurers <- lm(data = primary_regression_data,
+lm_insurers1 <- lm(data = primary_regression_data,
+           formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA)
+
+summary(lm_insurers1)
+
+lm_insurers2 <- lm(data = primary_regression_data,
+           formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
+
+summary(lm_insurers2)
+
+lm_insurers3 <- lm(data = primary_regression_data,
            formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA + provider_name + procedure)
 
-summary(lm_insurers)
-anova(lm_insurers)
+summary(lm_insurers3)
+anova(lm_insurers3)
 
 lm_hospitals1 <- lm(data = primary_regression_data,
                    formula = percent_medicare ~ n_hosp_hsa_total + typical_patient_complexity_scale + `Hospital Quality` + 
@@ -417,14 +427,14 @@ lm_hospitals2 <- lm(data = primary_regression_data,
 summary(lm_hospitals2)
 
 lm_hospitals3 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hsa_procedure + typical_patient_complexity_scale + `Hospital Quality` + 
+                   formula = percent_medicare ~ n_hosp_hsa_p + typical_patient_complexity_scale + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
 
 summary(lm_hospitals3)
 
 lm_hospitals4 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hrr_procedure + typical_patient_complexity_scale + `Hospital Quality` + 
+                   formula = percent_medicare ~ n_hosp_hrr_p + typical_patient_complexity_scale + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
 
@@ -452,37 +462,53 @@ lm_hospitals7 <- lm(data = primary_regression_data,
 summary(lm_hospitals7)
 
 lm_hospitals8 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_5mi_procedure + typical_patient_complexity_scale + `Hospital Quality` + 
+                   formula = percent_medicare ~ n_hosp_5mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
 
 summary(lm_hospitals8)
 
 lm_hospitals9 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_10mi_procedure + typical_patient_complexity_scale + `Hospital Quality` + 
+                   formula = percent_medicare ~ n_hosp_10mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
 
 summary(lm_hospitals9)
 
 lm_hospitals10 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_25mi_procedure  + typical_patient_complexity_scale + `Hospital Quality` + 
+                   formula = percent_medicare ~ n_hosp_25mi_p  + typical_patient_complexity_scale + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
                      Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
 
 summary(lm_hospitals10)
 
 lm_hospitals_insurers_1 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_10mi_procedure*Anthem_NH + n_hosp_10mi_procedure*Harvard_Pilgrim_HC + n_hosp_10mi_procedure*CIGNA + 
+                   formula = percent_medicare ~ n_hosp_5mi_p*Anthem_NH + n_hosp_5mi_p*Harvard_Pilgrim_HC + n_hosp_5mi_p*CIGNA + 
                      typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
                      procedure)
 
 summary(lm_hospitals_insurers_1)
 
 lm_hospitals_insurers_2 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_25mi_procedure*Anthem_NH + n_hosp_25mi_procedure*Harvard_Pilgrim_HC + n_hosp_25mi_procedure*CIGNA + 
+                   formula = percent_medicare ~ n_hosp_25mi_p*Anthem_NH + n_hosp_25mi_p*Harvard_Pilgrim_HC + n_hosp_25mi_p*CIGNA + 
                      typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
                      procedure)
+
+summary(lm_hospitals_insurers_2)
+
+lm_hospitals_insurers_3 <- lm(data = primary_regression_data,
+                   formula = percent_medicare ~ n_hosp_5mi_total*Anthem_NH + n_hosp_5mi_total*Harvard_Pilgrim_HC + n_hosp_5mi_total*CIGNA + 
+                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
+                     procedure)
+
+summary(lm_hospitals_insurers_3)
+
+lm_hospitals_insurers_4 <- lm(data = primary_regression_data,
+                   formula = percent_medicare ~ n_hosp_25mi_total*Anthem_NH + n_hosp_25mi_total*Harvard_Pilgrim_HC + n_hosp_25mi_total*CIGNA + 
+                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
+                     procedure)
+
+summary(lm_hospitals_insurers_4)
 
 primary_regression_data %>% 
   group_by(provider_name) %>% 
@@ -490,13 +516,13 @@ primary_regression_data %>%
   arrange(desc(mean_percent_medicare))
 ```
 
-### Abstract
-This thesis evaluates how the market power of insurers and hospitals in geographical sub-markets relates to the prices they negotiate for hospital care. Using carrier-hospital specific prices for outpatient medical procedures from New Hampshire's [NH HealthCost website](https://nhhealthcost.nh.gov/costs/select), I compare the estimated prices for the same service first across insurers and then across hospitals. I find that there are statistically significant differences between the prices different insurers pay for the same service at the same hospital, with the largest insurer paying the lowest prices. I also find that hospitals with fewer competitors are able to charge higher prices after controlling for quality, typical patient complexity, and socioeconomic/demographic characteristics. These results suggest that prices in hospital care are potentially inefficient and that policy solutions that policy solutions that can decrease the relative market power of each hospital and increase the market power of each insurer may help to reduce prices.
+## Abstract
+This thesis evaluates how the market power of insurers and hospitals relates to the prices they negotiate for hospital care. Using insurer-hospital-procedure specific prices for outpatient medical services from New Hampshire's [NH HealthCost website](https://nhhealthcost.nh.gov/costs/select), I compare the estimated prices for the same service first across insurers and then across hospitals, including an analysis of whether the hospital market power effects are heterogenous across insurers. I find that there are statistically significant differences between the prices different insurers pay for the same service at the same hospital, with the largest insurer paying the lowest prices. I also find that across all insurers hospitals with fewer competitors are able to charge higher prices after controlling for quality, typical patient complexity, and socioeconomic/demographic characteristics. However, the effects of hospital market power on negotiated prices vary heterogenously across different insurers. These results are consistent with the story that hospital prices are inefficient and that policy solutions that can decrease the relative market power of each hospital and increase the market power of each insurer may help to reduce prices.
 
 \newpage
 
-## Introduction
-The U.S.'s expenditure on health care has grown rapidly over the last few decades and has outpaced that of many peer countries without significant returns to quality (e.g. OECD 2017; Etehad and Kim 2017; Reinhardt et al., 2004).  A substantial body of research has determined that the biggest driver behind the U.S. health care expenditure is not greater utilization or social spending but quite simply higher prices (e.g. Anderson et al., 2003; Papanicolas et al., 2018). Given that the $3.3 trillion spent on health care annually (17.9% of GDP) (Centers for Disease Control and Prevention 2017) erodes the budgets of families and individuals, as well as those of local, state, and federal government, understanding the sources of variation in these prices is of tremendous import. 
+# Introduction
+The U.S.'s expenditure on health care has grown rapidly over the last few decades and has outpaced that of many peer countries without significant returns to quality (e.g. OECD 2017; Etehad and Kim 2017; Reinhardt et al., 2004).  A substantial body of research has determined that the biggest driver behind the U.S.'s health care expenditure is not greater utilization or social spending but simply higher prices (e.g. Anderson et al., 2003; Papanicolas et al., 2018). Given that the $3.3 trillion spent on health care annually (17.9% of GDP) (Centers for Disease Control and Prevention 2017) erodes the budgets of families and individuals, as well as those of local, state, and federal governments, understanding the sources of variation in these prices is of tremendous import. 
 
 This paper focuses on hospital prices because hospital care constitutes the largest share and one of the fastest growing components of U.S. health care spending at 32.4% ($1.0825 trillion) of national health expenditure (Centers for Disease Control and Prevention 2017) as shown in Figure 1. A vast body of research has identified wide variation in private insurance reimbursements to hospitals for the same services and/or diagnoses. Cooper et al., 2015 finds that for the privately insured, only about half of the variation in expenditure is due to the quantity of care delivered while half is purely driven by price variation; as a comparison, 95% of the variation in expenditure for public programs like Medicare is explained by variation in the quantity of care delivered.
 ```{r, echo=FALSE, fig.align="center"}
@@ -529,7 +555,7 @@ health_expenditures <- health_expenditures %>%
 
 ggplot(data = health_expenditures) +
   geom_line(mapping = aes(x = year, y = percent_of_gdp, color = fct_reorder(component_of_exp, -percent_of_gdp))) +
-  labs(title = "Figure 1: Health Care Spending in the U.S. over time", caption = "Source: Centers for Disease Control and Prevention 2017") +
+  labs(title = "Health Care Spending in the U.S. over time", caption = "Source: Centers for Disease Control and Prevention 2017") +
   scale_y_continuous(name = "Spending (percentage of GDP)", labels = percent) +
   scale_x_continuous(name = "Year", breaks = c(1960, 1970, 1980, 1990, 2000, 2010)) +
   scale_color_manual(name = "Component of Spending", values = c("percent_nhe" = "black", 
@@ -539,22 +565,22 @@ ggplot(data = health_expenditures) +
                     labels = c("Total National Health Expenditure", "Hospital Care", "Physician and Clinical Services", "Prescription Drugs")) +
   theme_tufte()
 ```
- 
-Given that the largest portion of Americans (49%) receive health care coverage from their employer through private insurance plans rather than through Medicare and Medicaid (Kaiser Family Foundation 2017), this price variation between different private insurers/hospital contracts affects what many Americans pay in premiums and out of pocket for their healthcare. Moreover, prior research such as Cooper et al. 2015 finds that this variation persists even when costs and quality are arguably held constant. 
+Considering the fact that the largest portion of Americans (49%) receive health care coverage from their employer through private insurance plans rather than through Medicare and Medicaid (Kaiser Family Foundation 2017), this price variation between different private insurers/hospital contracts affects what many Americans pay in premiums and out of pocket for their healthcare. Moreover, prior research such as Cooper et al. 2015 finds that this variation persists even when costs and quality are arguably held constant. 
 
-In this paper, I examine how prices for outpatient services in New Hampshire vary with the market share of the insurer and the market share of the hospital. New Hampshire has been a pioneer of price transparency in health care among the U.S. states and therefore provides the opportunity to more closely evaluate the forces shaping hospital prices. I use data from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) to construct prices at the insurer-provider-procedure level, information from the [New Hampshire Insurance Department](https://www.nh.gov/insurance/reports/documents/2018-nhid-annual-hearing-final-report.pdf) to obtain state-level health insurance information, and geographical data from a variety of sources to construct various measures of hospital market shares. I find statistically significant differences between the prices difference insurers face across the state.
+In this paper, I examine how prices for outpatient services in New Hampshire vary with the market share of the insurer and the market share of the hospital, including an analysis of whether the effects of hospital market share are heterogeneous across insurers. New Hampshire has been a pioneer of price transparency in health care among the U.S. states and therefore provides the opportunity to more closely evaluate the forces shaping hospital prices. I use data from [NH HealthCost](https://nhhealthcost.nh.gov/costs/select) to construct prices at the insurer-provider-procedure level, information from the [New Hampshire Insurance Department](https://www.nh.gov/insurance/reports/documents/2018-nhid-annual-hearing-final-report.pdf) to obtain state-level health insurance information, and geographical data from a variety of sources to construct various measures of hospital market shares. I find statistically significant differences between the prices difference insurers face across the state as well as statistically significant effects of hospital market share on prices, although this effect varies somewhat across insurers.
 
-This paper is most closely related to Cooper et al. 2015, but differs in several key respects: first, this analysis will focus a set of price data for hospital care in New Hampshire, while Cooper et al. 2015 relies on HCCI data which is a national cross-section sample and relies on claims data from Aetna, Humana, and United Health. While the HCCI data is a rich set of data that is perhaps nationally representative in a broad sense, none of these insurers are major players in the New Hampshire market; secondly, this paper will devote more attention to insurers' relative market power as well as the effects on the uninsured who have minimal market power; lastly, I also include an analysis of how the share of Medicare patients at a given hospital affects the prices that hospital negotiates with private insurers.
+This paper is most closely related to Cooper et al. 2015, but differs in several key respects: first, this analysis will focus a set of price data for hospital care in New Hampshire, while Cooper et al. 2015 relies on HCCI data which is a national cross-section sample and relies on claims data from Aetna, Humana, and United Health. While the HCCI data is a rich set of data that is perhaps nationally representative in a broad sense, none of these insurers are major players in the New Hampshire market; secondly, this paper will devote more attention to insurers' relative market power although a formal analysis of insurer market power is not possible; lastly, I also examine whether the effect of hospital competition is different across different private insurers.
 
-#### Structure
+## Structure
 Section II of this paper provides background on the New Hampshire market for health services. Section III supplies explanation of the data sources being used, how they were obtained, and the relevant information contained therein. Section IV lays out the empirical framework used in the the analyses and Section V presents the results. The paper concludes with Section VI.
 
 
 
 
-## Background on the New Hampshire Market
-### Health Insurance Coverage
-New Hampshire is a small state (8,953 sqaure miles) with a population of 1.343 million (90.5% white) and median household income of $71,305 (Census Bureau 2017). Additionally, 17.6% of the population is over the age of 65, which is slightly higher than the national average of 15.6% (Census Bureau 2017). Figures 2.1 and 2.2 depict the insurance status of New Hampshire residents in 2017 and the market share of major private insurers, respectively. According to the New Hampshire Insurance Department, a total of 543,900 members were enrolled in commercial market plans in 2017 in the state, and 81% received coverage through employer-sponsored insurance plans (11.0% Individual Market, 7.7% NH PAP, 12.6% Small Group, 19.8% Large Group Fully Insured, and 48.9% Large Group Self Insured). 
+# Background on the New Hampshire Market
+## Health Insurance Coverage
+New Hampshire is a small state (8,953 sqaure miles) with a population of 1.343 million (90.5% white) and median household income of $71,305 (Census Bureau 2017). Additionally, 17.6% of the population is over the age of 65, which is slightly higher than the national average of 15.6% (Census Bureau 2017). Figures 2 and 3 show the insurance status of New Hampshire residents in 2017 and the market share of major private insurers, respectively. In 2017, 62% of residents (approximately 820,000 individuals) received health insurance through the private insurance market, 56% through employer-sponsored insurance and 6% through individual private insurance, and this translates to 543,900 enrolled members.^[A plan member can be a household or an individual; these estimates exclude individuals covered by the Federal Employees Health Benefits Program (FEHBP)] Of the privately insured, 81% received coverage through employer-sponsored insurance plans (12.6% Small Group, 19.8% Large Group Fully Insured, and 48.9% Large Group Self Insured) and the remainder either purchase their coverage individually (11.0%) or received subsidies for private coverage through New Hampshire's Premium Assistance Program (7.7%). 
+
 ```{r, echo=FALSE}
 
 # Creating dataframe on insurance status in NH from NH Insurance department, first creating columns
@@ -580,7 +606,8 @@ insurance_status_nh %>%
   coord_polar("y", start = 0) +
   scale_fill_brewer(name = "Insurance Status") +
   geom_text(aes(label = paste0(percent_in, "%")), position = position_stack(vjust = 0.5), color = "white", family = "serif", check_overlap = TRUE) +
-  labs(title = "Figure 2: New Hampshire Residents by Health Insurance Status in 2017") +
+  labs(title = "New Hampshire Residents by Health Insurance Status in 2017", 
+       caption = "Source: New Hampshire Health Insurance Department, Nov. 2018") +
   theme_tufte() +
   theme(axis.title.x  = element_blank(),
         axis.text.x = element_blank(),
@@ -588,6 +615,7 @@ insurance_status_nh %>%
         axis.title.y  = element_blank(),
         axis.ticks.y = element_blank())
 ```
+The three major private insurers are Anthem/Matthew Thorton (39%), Harvard Pilgrim Healthcare (27%), and CIGNA (20%). Other insurers include Ambetter (3.5%), Minuteman Health (3.4%), Tufts (3.0%), Community Health Options (2.1%), United (1.2%), and Aetna (0.2%), but the HealthCost website often does not provide prices for these insurers and when it does, it does not specify between them so I am unable to include them in the analysis. Of the three major insurers, both Anthem and CIGNA have a significant national presence, Anthem being the larger of the two with 40.2 million members compared to CIGNA's 15.9 million members [Becker's Hospital Review 2019](https://www.beckershospitalreview.com/payer-issues/america-s-largest-health-insurers-in-2018.html). The Anthem plans are underwritten by Matthew Thorton Health Plan, Inc., which is a fully owned subsidiary of Anthem, but will be referred to as "Anthem" for the remainder of the paper. Harvard Pilgrim Health Care is a non-profit private company that primarily operates in the north eastern United States [Crunchbase 2019](https://www.crunchbase.com/organization/harvard-pilgrim-health-care#section-overview), so while it is the second largest insurer in New Hampshire, it is a relatively small national player.
 
 ```{r, echo=FALSE, fig.align='center'}
 
@@ -598,7 +626,8 @@ private_insurance %>%
   scale_fill_manual(name = "Private Insurer", values = c("CIGNA" = "#99CC00", "Anthem/Matthew Thorton" = "#336699", 
                                "Harvard Pilgrim" = "#CC0000", "Other" = "#C0C0C0")) +
   geom_text(aes(label = paste0(percent_enrolled, "%")), position = position_stack(vjust = 0.5), color = "white", family = "serif") +
-  labs(title = "Figure 3: Distribution by Insurer for NH Commercial Market in 2017") +
+  labs(title = "Distribution by Insurer for NH Commercial Market in 2017", 
+       caption = "Source: New Hampshire Health Insurance Department, Nov. 2018") +
   theme_tufte() +
   theme(axis.title.x  = element_blank(),
         axis.text.x = element_blank(),
@@ -607,10 +636,11 @@ private_insurance %>%
         axis.ticks.y = element_blank())
 ```
 
-### New Hampshire Providers
+
+## New Hampshire Providers
 New Hampshire has a total of 31 hospitals and 3,503 beds within the state (New Hampshire Hospital Association 2018). According to the New Hampshire Hospital Association, 13 of these hospitals with 2,704 beds total are Prospective Payment Systems (PPS) Hospitals, which take prospective payments from Medicare; 13 hospitals with 301 beds total are Critical Access Hospitals (CAH), which serve rural populations and therefore are eligible to receive certain benefits from Medicare such as cost-based reimbursement for Medicare services; 5 hospitals with 498 beds total are Specialty Hospitals, which provide a specialized category of services (such as children’s hospitals, orthopedic hospitals, cancer hospitals, etc.) and are omitted from my analysis for lack of price information. While categorized by Medicare reimbursements, all of the hospitals included in my analysis serve privately insured individuals in addition to Medicare patients.
 
-In addition to the 26 New Hampshire hospitals, there are 6 out-of-state hospitals included in my analysis which are located close to New Hampshire's borders: Anna Jaques Hospital, Lawrence General Hospital, and Lowell General Hospital (Massachusetts); Bridgton Hospital and York Hospital (Maine); and Northeastern Vermont Regional Hospital (Vermont). Furthermore, there are 99 non-hospital providers such as ambulatory surgical centers, clinics, and private phsycian groups that also provide some of the relevant outpatient procedures. Though the focus of the analysis will be on hospitals, I include these non-hospital providers in Figure 3 for context.
+In addition to the 26 New Hampshire hospitals, there are 6 out-of-state hospitals included in my analysis which are located close to New Hampshire's borders: Anna Jaques Hospital, Lawrence General Hospital, and Lowell General Hospital (Massachusetts); Bridgton Hospital and York Hospital (Maine); and Northeastern Vermont Regional Hospital (Vermont). Furthermore, there are 99 non-hospital providers such as ambulatory surgical centers, clinics, and private phsycian groups that also provide some of the relevant outpatient procedures. Though the focus of the analysis will be on hospitals, I include these non-hospital providers in Figure 4 for context.
 
 ```{r, echo=FALSE, out.width="100%", message=FALSE, warning=FALSE}
 
@@ -650,7 +680,7 @@ hospitals <- primary_data %>%
                    box.padding = unit(0.2, 'lines'), xlim = c(-73,-71), ylim = c(41.5, 42.2)) +
    geom_text_repel(data = subset(hospitals, long < -71 & long > -71.4 & lat < 42.9), aes(x = long, y = lat, label = provider_name), size = 1.7, 
                    box.padding = unit(0.2, 'lines'), xlim = c(-71.5,-69), ylim = c(41, 42.6)) +
-  labs(title = "Figure 4: Location of New Hampshire Hospitals") +
+  labs(title = "Location of New Hampshire Hospitals") +
   theme_tufte() +
   theme(axis.title.x  = element_blank(),
         axis.text.x = element_blank(),
@@ -675,7 +705,7 @@ primary_data %>%
   scale_y_continuous(name = "Price Estimate", labels = dollar) +
   scale_fill_brewer() +
   facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
-  labs(title = "Figure 4.1: Price Variation for 10 Common Outpatient Procedures (NH)", 
+  labs(title = "Price Variation for 10 Common Outpatient Procedures (NH)", 
        subtitle = "Uninsured, Private Insurers, and Medicare") +
   theme_tufte() +
   theme(axis.title.y = element_blank(),
@@ -692,7 +722,7 @@ primary_data %>%
   scale_y_continuous(name = "Price Estimate", labels = dollar) +
   scale_fill_brewer() +
   facet_wrap(~procedure, nrow = 5, ncol = 2, scales = "free") +
-  labs(title = "Figure 4.2: Price Variation for 10 Common Outpatient Procedures (NH)", 
+  labs(title = "Price Variation for 10 Common Outpatient Procedures (NH)", 
        subtitle = "For the Top Three Private Insurers (Anthem, CIGNA, & Harvard Pilgrim)") +
   theme_tufte() +
   theme(axis.title.y = element_blank(),
@@ -719,7 +749,7 @@ primary_data %>%
   scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
                                "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080"), name = "Insurer") +
   scale_y_continuous(name = "Price Estimate", labels = dollar) +
-  labs(title = "Figure 6.1: Prices for Ultrasound - Transvaginal (non-maternity)") + 
+  labs(title = "Prices for Ultrasound - Transvaginal (non-maternity)") + 
   coord_flip() +
   theme_tufte() +
   theme(axis.title.y = element_blank())
@@ -742,7 +772,7 @@ primary_data %>%
   scale_fill_manual(values = c("Uninsured" = "#DCDCDC", "CIGNA" = "#99CC00", "Anthem NH" = "#336699", 
                                "Harvard Pilgrim HC" = "#CC0000", "Other" = "#C0C0C0", "Medicare" = "#808080"), name = "Insurer") +
   scale_y_continuous(name = "Price Estimate", labels = dollar) +
-  labs(title = "Figure 6.2: Prices for X-Ray - Spine (outpatient)") +
+  labs(title = "Prices for X-Ray - Spine (outpatient)") +
   coord_flip() +
   theme_tufte() + 
   theme(axis.title.y = element_blank())
@@ -753,9 +783,9 @@ It is unlikely that the cost of providing each of these services and the quality
 
 
 
-## Data
-### HealthCost Data
-The primary source of data on hospital prices comes from the New Hampshire Insurance Department [HealthCost website](https://nhhealthcost.nh.gov/costs/select) which is a publicly available tool that provides insurer-hospital specific estimations of costs for roughly 150 services and procedures. New Hampshire is one of the few states that makes such information publicly available, hence why I use it as a case study for my analysis. The cost estimates are calculated using claims data from the New Hampshire Comprehensive Healthcare Information System (NHCHIS) to determine the median amount that insurance carriers and patients pay for each service. The estimated costs therefore reflect the rates negotiated between health care providers and insurance carriers (often referred to as the "allowable amount") rather than provider charges, which have been shown to have little relation to what most privately insurered individuals actually pay for a given service. In addition, HealthCost estimates the prices faced by the uninsured based on charges minus any discount the provider may offer uninsured patients.
+# Data
+## HealthCost Data
+The primary source of data on hospital prices comes from the New Hampshire Insurance Department [HealthCost website](https://nhhealthcost.nh.gov/costs/select) which is a publicly available tool that provides insurer-hospital specific estimations of costs for roughly 150 services and procedures. New Hampshire is one of the few states that makes such information publicly available, hence why I use it as a case study for my analysis. The cost estimates are calculated using claims data from the New Hampshire Comprehensive Healthcare Information System (NHCHIS) to determine the median amount that insurance carriers and patients pay for each service. The estimated costs therefore reflect the rates negotiated between health care providers and insurance carriers (often referred to as the "allowable amount") rather than provider charges, which have been shown to have little relation to what most privately insurered individuals actually pay for a given service.
 
 For the services relevant to this paper (outpatient procedures and radiology services), the estimated prices may be "bundled" to include multiple services or independent providers; that is, the estimates aggregate the costs for what may be treatment received from several providers (billing separately) under the "lead provider" rather than distinguishing between what is paid to the facility versus the physicians who treat the patient. Price estimates for radiology services use a modified bundle that includes the facility and the professional fees associated with the patient receiving that service but not any other costs that the patient may have incurred on the same day. 
 
@@ -765,22 +795,21 @@ Additionally, HealthCost includes indicators of variability for each estimate un
 
 The data available on HealthCost me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. I also keep values for "Typical Patient Complexity" and "Precision of the Cost Estimate" to use as controls in my analysis. 
 
-### CMS Data
-The Center for Medicaid and Medicare Services (CMS) provides several useful data sets on Medicare prices and hospital quality. Medicare sets all of it prices centrally, allowing for some variation across regions. For oupatient services, Medicare reimburses hospital by the services they provided. That is prices are provided at the CPT code level. This information is made public in the Physician Fee Schedule (PFS) [2018 Relative Value file](https://www.cms.gov/Medicare/Medicare-Fee-for-Service-Payment/PhysicianFeeSched/PFS-Relative-Value-Files.html), allowing me to construct the Medicare reimbursement rates at each hospital for each service observed in the HealthCost data by matching each hospital with a locality in the CMS data. I am able to calculate the 2018 Medicare Facility Pricing Amount $p_{2018}^{Medicare}$ for each procedure $j$ at the locality level $l$ using  the following formula:
+## CMS Data
+### Medicare Prices
+The Center for Medicaid and Medicare Services (CMS) sets all of it prices centrally, allowing for some variation across regions, and reimburses oupatient services through Medicare Part B based on the services provided, defined at the CPT code level. This information is made public in the Physician Fee Schedule (PFS) [2018 Relative Value file](https://www.cms.gov/Medicare/Medicare-Fee-for-Service-Payment/PhysicianFeeSched/PFS-Relative-Value-Files.html), allowing me to construct the Medicare reimbursement rates at each hospital for each service observed in the HealthCost data by matching each hospital to a locality in the CMS data. I am able to calculate the 2018 Medicare Facility Pricing Amount $p_{2018}^{Medicare}$ for each procedure $j$ at the locality level $l$ using  the following formula:
 $$p_{jl, 2018}^{Medicare} = [({RVU}_{j}^{work}*{GPCI}_{l}^{work}) + ({RVU}_{j}^{PE}*{GPCI}_{l}^{PE}) + ({RVU}_{j}^{MP}*{GPCI}_{l}^{MP})]*{CF}_{2018} $$ 
-where ${RVU}_{j}^{work}$ denotes the Relative Value Unit (RVU) for the physician work involved in providing procedure $j$, ${RVU}_{j}^{PE}$ denotes the RVU for the resource-based practice expense for the facility setting, and ${RVU}_{j}^{MP}$ denotes the RVU for the malpractice expense. ${GPCI}_{l}^{work}$ denotes the Geographic Practice Cost Index (GPCI) corresponding to locality $l$ and the work RVU, ${GPCI}_{l}^{PE}$ corresponds to the practice expense RVU, and ${GPCI}_{l}^{MP}$ corresponds to the malpractice RVU. ${CF}_{2018}$ denotes the 2018 conversion factor ($36.00).
+where ${RVU}_{j}^{work}$ denotes the Relative Value Unit (RVU) for the physician work involved in providing procedure $j$, ${RVU}_{j}^{PE}$ denotes the RVU for the resource-based practice expense for the facility setting, and ${RVU}_{j}^{MP}$ denotes the RVU for the malpractice expense. ${GPCI}_{l}^{work}$ denotes the Geographic Practice Cost Index (GPCI) corresponding to locality $l$ and the work RVU, ${GPCI}_{l}^{PE}$ corresponds to the practice expense RVU, and ${GPCI}_{l}^{MP}$ corresponds to the malpractice RVU. ${CF}_{2018}$ denotes the 2018 conversion factor (\$35.996). For example, a foot x-ray has a work RVU of 0.17, a facility practice expense RVU of 0.64, and a malpractice RVU of 0.02 while an arthroscopic shoulder surgery has a work RVU of 8.843, a facility practice expense RVU of 7.997, and a malpractice RVU of 1.612 to capture how the arthroscopic shoulder surgery is a much more technical, expensive, and high-risk procedure to provide than a foot x-ray. These RVUs are then weighted by the locality $l$'s corresponding GPCIs (values that range from 0.950 to 1.925 in the 2018 data) to account for labor costs, equipment costs, and malpractice expenses in that region. As a result, Medicare pays \$30.90 for a foot x-ray and \$677.26 for an arthroscopic shoulder surgeryin in most New Hampshire hospitals but \$34.25 for a foot x-ray and \$729.84 for an arthroscopic shoulder surgery in the Boston metropolitan area.
 
 Medicare treats all of New Hampshire as one locality, meaning that all hospitals in New Hampshire that are reimbursed through prospective payments are reimbursed the same amount for outpatient services through Medicare Part B. However, 13 out of the 32 hospitals in my dataset are Critical Access Hospitals (CAHs) that are elligible to receive cost-based reimbursements from Medicare. I was unable to obtain data on exactly how much these CAHs are reimbursed by CPT code and therefore use the prospective payment rates as an approximation for what they are reimbursed by Medicare. This should not have a major impact on the analysis as the focus is on private insurers, and I primarily use Medicare prices for the purposes of standardization of the private insurer prices available through NH HealthCost. 
 
-
-The second dataset provided by CMS is the [Hospital Compare data](https://data.medicare.gov/data/hospital-compare) which provides measures of quality. The hospital overall ratings show the quality of care a hospital may provide compared to other hospitals based on the quality measures reported on Hospital Compare, summarizing into a single rating more than 60 measures in seven measure groups: mortality, safety of care, readmission, patient experience, effectiveness of care, timeliness of care, and efficient use of medical imaging.
-
-
+### Hospital Quality
+The second dataset provided by CMS is the [Hospital Compare data](https://data.medicare.gov/data/hospital-compare) which provides measures of quality. The hospital overall ratings attempt to capture the quality of care a hospital may provide compared to other hospitals based on the quality measures reported on Hospital Compare, summarizing into a single rating more than 60 measures in seven measure groups: mortality, safety of care, readmission, patient experience, effectiveness of care, timeliness of care, and efficient use of medical imaging. Hospitals are ranked out of five stars, and my dataset includes two hospitals with two stars, 11 hospitals with three stars, 16 hospitals with four stars, and three hospitals with five stars for their overall ratings.
 
 
-## Empirical Framework
-### Theoretical Framework
-In standard micro-economic theory, one learns that resources are optimally allocated in a perfectly competitive market via the mechanism of price, which results from the intersection of the supply and demand curces. For producers, the price will be equivalent to the marginal cost of production, and for consumers, the price will reflect the value of their marginal unit of utility. In this standard model, both producers and consumers are price takers, making their production or consumption decisions based on an exogenous price. 
+
+# Conceptual Framework
+In standard micro-economic theory, one learns that resources are optimally allocated in a perfectly competitive market via the mechanism of price, which results from the intersection of the supply and demand curves. For producers, the price will be equivalent to the marginal cost of production, and for consumers, the price will reflect the value of their marginal unit of utility. In this standard model, both producers and consumers are price takers, making their production or consumption decisions based on an exogenous price. 
 
 However, in the real world it is often the case that firms, and occasionally consumers, can excercise some level of market power; that is, their production or consumption decisions can affect price such that it is no longer exogenous. In this scenario, the agent with market power is no longer a price taker but also a price setter. The most extreme example of this of course is the monopolist, which sets its price to maximize profits given the demand curve for the good, and when profits are introduced, price is no longer welfare maximizing and a less than optimal amount of the good is consumed. 
 
@@ -790,16 +819,16 @@ Because the insurers cover a large portion of the cost of care, at least in the 
 
 In these bilateral negotiations, I assume the following: both the provider and the payer want to maximize the number of patients they serve and their profit margins per patient, even if the provider is a non-profit (Horwitz 2005). Providers want to receive higher prices for their services but also to be included in payers' networks, as patients face lower out-of-pocket costs when going to providers in network. Payers want to pay lower prices for providers’ services to minimize their costs but also want to attract enrollees by including convenient providers in their network, which is an important aspect of plan selection for individuals (Ho 2006). Thus, if market share is associated with bargaining power, prices are expected to be more favorable for the hospitals or insurers with greater market shares. I examine whether this is the case in the analysis that follows.
 
-### Empirical Approach
-My analysis seeks to identify whether the market power of hospitals and insurers is related to variation in the prices private insurers pay for hospital services. The first section focuses insurer market power and the second on hospital market power. I restrict my analyses only to radiology services, which are among some of the most common outpatient procedures, only to hospitals (excluding ambulatory care centers, clinics, specialist practices, etc.), and only to the three major private insurers and Medicare (to provide a base price). This leaves me with 33 services, 31 hospitals, and 2,308 observations as I do not have prices for all four insurers and all 33 services at each each hospital.
+# Empirical Approach
+My analysis seeks to identify whether the market power of hospitals and insurers is related to variation in the prices private insurers pay for hospital services. The first section focuses insurer market power and the second on hospital market power. I restrict my analyses only to radiology services, which are among some of the most common outpatient procedures, only to hospitals (excluding ambulatory care centers, clinics, specialist practices, etc.), and only to the three major private insurers and Medicare (to provide a base price). This leaves me with 33 services, 31 hospitals,^[Bridgton Hospital in Maine was dropped from the dataset as HealthCost did not provide data on the prices of any radiology services at this hospital] and 2,308 observations as I do not have prices for all four insurers and all 33 services at each each hospital.
 
-Radiology services (CT scans, MRIs, ultrasounds, x-rays, etc.) generally involve the use of an imaging device to capture an image which is then read (examined) by a radiologist who reports their findings to the patient or patient's doctor. The initial cost of purchasing one of these imaging devices may vary somewhat, but the per unit cost of procuring and reading an image is likely to be similar across providers once controlling for wages. Within hospitals, there should be very little deviation in per unit costs. Furthermore, the quality of radiology services may potentially vary across hospitals, but within each hospital, this quality is plausibly assumed constant.
+Radiology services (CT scans, MRIs, ultrasounds, x-rays, etc.) generally involve the use of an imaging device to capture an image which is then read (examined) by a radiologist who reports their findings to the patient or patient's doctor. The initial cost of purchasing one of these imaging devices is expensive and may vary somewhat, but the per unit cost of procuring and reading an image is likely to be similar across providers once controlling for wages. Within hospitals, there should be very little deviation in per unit costs. Furthermore, the quality of radiology services may potentially vary across hospitals (although I would argue this variation is minimal), but within each hospital, this quality is plausibly assumed constant.
 
 My outcome variable of interest is the percentage of the price Medicare paid by individual with insurance $i$ for a particular procedure $j$ at a particular hospital $h$, denoted as $y_{ijh}$. That is, 
 
-$$y_{ijh} = \frac {p_{ijh}}{p_{ijh}^{Medicare}}$$
+$$y_{ijh} = \frac {p_{ijh}}{p_{jh}^{Medicare}}$$
 
-where $p_{ijh}$ denotes the price a particular insurer pays for procedure $j$ at hospital $h$, and $p_{ijh}^{Medicare}$ denotes the price Medicare pays for the same service at the same hospital. As mentioned above, for some of the critical access hospitals, this may not be the rate at which Medicare actually reimburses the hospital because only the PFS rates are known, but the medicare price is merely used to standardize prices and therefore the analysis should be largely unaffected by this limitation.
+where $p_{ijh}$ denotes the price a particular insurer pays for procedure $j$ at hospital $h$, and $p_{jh}^{Medicare}$ denotes the price Medicare pays for the same service at the same hospital. As mentioned above, for some of the critical access hospitals, this may not be the rate at which Medicare actually reimburses the hospital because only the PFS rates are known, but the medicare price is merely used to standardize prices and therefore the analysis should be largely unaffected by this limitation.
 
 The first estimation is interested in determining whether there is a statistical difference between the prices hospitals charge Anthem, Harvard Pilgrim, and CIGNA in New Hampshire for the same service, with the context that Anthem (the largest commercial insurer) composes 39% of the commercial insurance market, Harvard Pilgrim 27%, and CIGNA (the smallest major commercial insurer) 20%. I estimate what percentage of the Medicare price each insurer pays using the following linear model:
 
@@ -807,9 +836,9 @@ $$y_{ijh} = \sum_{n \epsilon N} \gamma_n \left[{insurer_n}\right] + \delta_j + \
 
 where $N$ is the set of private insurers (Anthem, Harvard Pilgrim, CIGNA), and ${insurer_n}$ is an indicator variable that takes on the value of 1 or 0. The coefficient $\gamma_n$ therefore denotes the percentage of the medicare price insurer $n$ is estimated to pay, and the three resulting coefficients of the summation (one $\gamma_i$ for each insurer) are the primary coefficients of interest. The regression also includes procedure fixed effects $\delta_j$ and hospital fixed effects $\lambda_h$ so that the price for the same procedure at the same hospital can be compared among the commercial insurers. The error term is denoted by $\varepsilon_{ijh}$.
 
-This estimation is unable to directly make any claims regarding the magnitude of the relationship between the market power of insurer $i$ and the price of procedure $j$ at hospital $h$, because I only have the state-wide market shares of each insurer. An analysis to truly test the effect of market power would require knowing the market power of each insurer within hospital $h$'s market, which may not be distributed as the state-wide shares are, and identifying this relationship the prices negotiated between insurer $i$ and hospital $h$ given insurer $i$'s market share in hospital $h$'s market, but I do not have this information. However, in my analysis the relative magnitude of the coefficients $\gamma_i$ and their statistical significance suggest the potential direction of this relationship. That is, each insurer's state-wide market share is known and can be ranked from largest to smallest, and a negative relationship between the size of the insurer's statewide market share and the magnitude of $\gamma_i$ suggests that larger insurers may negotiate cheaper prices, potentially as a function of their market power.
+This analysis will only be able to evaluate whether there are consistent differences between the prices each insurer pays and reveal a possible correlation between the relative magnitudes of $\gamma_i$ and the market share of insurer $i$. However, this estimation is unable to directly make any claims regarding the magnitude of the relationship between the market power of insurer $i$ and the price of procedure $j$ at hospital $h$, because I only have the state-wide market shares of each insurer. Ideally, I would know the market power of each insurer within hospital $h$'s market, and identify the relationship between the prices negotiated by insurer $i$ and hospital $h$ given insurer $i$'s market share in hospital $h$'s market. Nonetheless, in my analysis the relative magnitude of the coefficients $\gamma_i$ and their statistical significance suggest the potential direction of this relationship. That is, each insurer's state-wide market share is known and can be ranked from largest to smallest, and a negative correlation between the size of the insurer's statewide market share and the magnitude of $\gamma_i$ suggests that larger insurers may negotiate cheaper prices, potentially as a function of their market power.
 
-The second set of estimations concerns how the market power of each hospital relates to the price (as a percentage of the Medicare price) for a particular service that that hospital negotiates with each insurer. Essentially, the hospital fixed effects variable Equation (2) is broken apart into various observable measures relating to a particular hospital and its market, resulting in the following linear model:
+While each insurer competition in hospital $h$'s market is unknown, I am able to construct measures of hospital competition within each hospital's market. Thus, the second set of estimations concerns how the presence of other hospitals within each hospital's market relates to the price (as a percentage of the Medicare price) for a particular service that hospital $h$ negotiates with each insurer. Essentially, the hospital fixed effects variable Equation (2) is broken apart into various observable measures relating to a particular hospital and its market, resulting in the following linear model:
 
 $$y_{ijh} = \zeta_i + \delta_j + \alpha m_h + \beta x_h + \varepsilon_{ijh}$$
 
@@ -830,13 +859,16 @@ The primary coefficient of interest in this second set of regressions is $\alpha
 
 
 
-## Results
+# Results
 The first set of results presented in Table 1 demonstrate that there are statistically significant differences in the prices paid by each insurer for a particular service at a particular hospital. The coefficients (presented as the average percentage of the Medicare price that insurer pays) suggest that on average Anthem pays 6.43 times the Medicare price, Harvard Pilgrim pays 7.04 times the Medicare price, and CIGNA 7.92 times the Medicare price. 
 ```{r, echo=FALSE, results = "asis", fig.align='center', message=FALSE}
-stargazer(lm_insurers, omit = c(4:172), header = FALSE,
-          title = "Insurance Carrier and Relative Prices",
-          covariate.labels = c("Anthem NH", "Harvard Pilgrim HC", "CIGNA"), 
-          dep.var.labels = "Percent of Medicare Price")
+
+stargazer(lm_insurers2, lm_insurers3, header = FALSE,
+          omit = c("provider_name", "procedure"), omit.labels = c("Hospital Fixed Effects", "Procedure Fixed Effects"),
+          keep.stat = c("n", "rsq"),
+          title = "Private Insurance Carrier and Relative Prices",
+          covariate.labels = c("Anthem", "Harvard Pilgrim", "CIGNA"), 
+          dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
 
 ```
 The positive direction of the coefficients is unsurprising as Medicare consistently reimburses providers at much lower rates than do private insurers; however the magnitude of the coefficients is somewhat large compared to prior literature, which usually finds private insurer rates to be somewhere betwee 150-200% of Medicare rates largely in the context of inpatient services. Nonetheless, the meaning of these results is not necessarily diminished. Among the inpatient services they examine, Cooper et al. (2015) find the greatest disparity in Medicare versus private reimbursement for lower limb MRIs, the only radiology service they consider (private insurers pay on average 4 times the Medicare price in their sample), so perhaps Medicare is particularly able to set low prices for radiology services given the low per-unit cost of radiology services. Additionally, the price data from HealthCost reflects "bundled" prices as detailed in the Data portion of this paper, so they may be somewhat inflated compared to the Medicare prices. Importantly however, HealthCost bundles payments in the same way across all three private insurers and therefore the variation in the prices paid by each insurer is unaffected by this imperfect standardization to the Medicare price.
@@ -848,7 +880,7 @@ The second set of regressions presented in Tables 2-5 suggest that the number of
 stargazer(lm_hospitals1, lm_hospitals2, lm_hospitals5, lm_hospitals7, header = FALSE,
           omit = "procedure", omit.labels = "Procedure Fixed Effects",
           keep.stat = c("n", "rsq"),
-          title = "Total Number of Hospitals in Market (HSA/HRR definition) and Relative Price",
+          title = "Hospital Competition and Relative Price",
           covariate.labels = c("Total Hospitals in HSA",
                                "Total Hospitals in HRR",
                                "Total Hospitals in 5-mile radius",
@@ -869,12 +901,10 @@ stargazer(lm_hospitals1, lm_hospitals2, lm_hospitals5, lm_hospitals7, header = F
 
 stargazer(lm_hospitals3, lm_hospitals4, lm_hospitals8, lm_hospitals10,
           header = FALSE,
-          keep = c("n_hosp_hsa_procedure", "n_hosp_hrr_procedure", "n_hosp_5mi_procedure", "n_hosp_25mi_procedure",
-                   "typical_patient_complexity_scale", "`Hospital Quality`", "median_household_income", "percent_pop_over65", "pop_density",
-                   "Anthem_NH", "Harvard_Pilgrim_HC", "CIGNA", "Constant"),
+          omit = "procedure", omit.labels = "Procedure Fixed Effects",
           add.lines = c("Procedure Fixed Effects"),
           keep.stat = c("n", "rsq"),
-          title = "Number of Hospitals in Market (HSA/HRR definition) Offering Procedure and Relative Price",
+          title = "Hospital Competition by Procedure and Relative Price",
           covariate.labels = c("Hospitals in HSA w/ procedure",
                                "Hospitals in HRR w/ procedure",
                                "Hospitals in 5-mile radius w/ procedure",
@@ -899,19 +929,75 @@ The coefficient on the number of hospitals within a hospital's HRR is not ever s
 
 In addition the the variables concerned with the hospitals' market share, the control variables also provide some interesting coefficients. The measures of typical patient complexity are somewhat convoluted as the omitted dummy variable is for high typical patient complxity. There are only four hospital-procedure observations for which typical patient complexity is categorized as low while there are at least several hundred hospital-procedure observations for medium and high typical patient complexities. Therefore, while the coefficient on "Typical Patient Complexity - Low" is statistically zero, the negative coefficient on "Typical Patient Complexity - Medium" is intuitive in that relative to hospital-procedure pairings that are high typical complexity, the price when the typical complexity is more average is lower. Hospital quality, after controlling for other hospital characteristics is consistently statistically equivalent to zero, which is in line with my theoretical framework that quality has little to do with prices, especially in the context of radiology services where quality is plausibly constant across providers. The median household income of the county in which the hospital is associated is unsurprisingly positively associated with hospital prices. However, the controls for the percent of the population 65 and older and population density are consistently statistically significant and negative. This suggests that prices are lower when a larger portion of the population is 65 and older and as areas are more densely populated (still controlling for income), perhaps because more patients requiring more care more often may encourage hospital competition through being more price sensitive.
 
+```{r, echo=FALSE, results = "asis", message=FALSE}
+stargazer(lm_hospitals_insurers_3, lm_hospitals_insurers_4,
+          omit = "procedure", omit.labels = "Procedure Fixed Effects",
+          keep.stat = c("n", "rsq"),
+          order = c("n_hosp_5mi_total:Anthem_NH", "n_hosp_5mi_total:Harvard_Pilgrim_HC", "n_hosp_5mi_total:CIGNA", "n_hosp_5mi_total",
+                    "n_hosp_25mi_total:Anthem_NH", "n_hosp_25mi_total:Harvard_Pilgrim_HC", "n_hosp_25mi_total:CIGNA", "n_hosp_25mi_total",
+                    "typical_patient_complexity_scale", "`Hospital Quality`", "median_household_income", "percent_pop_over65", "pop_density",
+                    "Anthem_NH", "Harvard_Pilgrim_HC", "CIGNA", "Constant"),
+          title = "Total Hospital Competition by Insurer and Relative Price",
+          covariate.labels = c("Total Hospitals in 5-mile radius x Anthem",
+                               "Total Hospitals in 5-mile radius x Harvard Pilgrim",
+                               "Total Hospitals in 5-mile radius x CIGNA",
+                               "Total Hospitals in 5-mile radius",
+                               "Total Hospitals in 25-mile radius x Anthem",
+                               "Total Hospitals in 25-mile radius x Harvard Pilgrim",
+                               "Total Hospitals in 25-mile radius x CIGNA",
+                               "Total Hospitals in 25-mile radius",
+                               "Typical Patient Complexity", 
+                               "Hospital Quality",
+                               "Median Income (1000s)",
+                               "Percent Population 65 and older",
+                               "Population Density",
+                               "Anthem",
+                               "Harvard Pilgrim",
+                               "CIGNA"), 
+          dep.var.labels = "Percent of Medicare Price", font.size = "scriptsize")
+```
 
-## Discussion
+```{r, echo=FALSE, results = "asis", message=FALSE}
+stargazer(lm_hospitals_insurers_1, lm_hospitals_insurers_2,
+          omit = "procedure", omit.labels = "Procedure Fixed Effects",
+          keep.stat = c("n", "rsq"),
+          order = c("n_hosp_5mi_p:Anthem_NH", "n_hosp_5mi_p:Harvard_Pilgrim_HC", "n_hosp_5mi_p:CIGNA", "n_hosp_5mi_p",
+                    "n_hosp_25mi_p:Anthem_NH", "n_hosp_25mi_p:Harvard_Pilgrim_HC", "n_hosp_25mi_p:CIGNA", "n_hosp_25mi_p",
+                    "typical_patient_complexity_scale", "`Hospital Quality`", "median_household_income", "percent_pop_over65", "pop_density",
+                    "Anthem_NH", "Harvard_Pilgrim_HC", "CIGNA", "Constant"),
+          title = "Hospital Competition by Procedure and Insurer and Relative Price",
+          covariate.labels = c("Hospitals in 5-mile radius w/ procedure x Anthem",
+                               "Hospitals in 5-mile radius w/ procedure x Harvard Pilgrim",
+                               "Hospitals in 5-mile radius w/ procedure x CIGNA",
+                               "Hospitals in 5-mile radius w/ procedure",
+                               "Hospitals in 25-mile radius w/ procedure x Anthem",
+                               "Hospitals in 25-mile radius w/ procedure x Harvard Pilgrim",
+                               "Hospitals in 25-mile radius w/ procedure x CIGNA",
+                               "Hospitals in 25-mile radius w/ procedure",
+                               "Typical Patient Complexity", 
+                               "Hospital Quality",
+                               "Median Income (1000s)",
+                               "Percent Population 65 and older",
+                               "Population Density",
+                               "Anthem",
+                               "Harvard Pilgrim",
+                               "CIGNA"), 
+          dep.var.labels = "Percent of Medicare Price", font.size = "scriptsize")
+```
+
+
+# Discussion
 The results as a whole suggest that the market power of insurers and hospitals may be related to the prices hospitals and insurers negotiate as the theoretical framework would predict. That is, the insurers and hospitals with the greatest market shares are able to negotiate the most favorable prices; for the insurers, the expectation is that they want to pay the lowest prices possible, and for the hospitals, it is assumed that they want to receive the highest prices possible. 
 However, there are several key limitations of this analysis in addition to the few that have been mentioned above. Namely, the analysis is limited by the lack of granularity of the data. First, the insurers' market share is only available at the state-level and therefore it cannot be explored whether the market power of each insurer within each hospital's market affects negotiated prices. Next, the hospital's true market share is also unknown as I do not have volume data for each hospital for each service, and I also do not have data on the variation of this volume across different insurers. One hospital may serve many more Medicare patients or Anthem patients than another, but this cannot be accounted for in my analysis. Lastly, the availability of price data is very limited and somewhat aggregated. I restrict my analysis only to outpatient radiology services in order to plausibly control for cost and quality both within and across hospitals, but the results may not extend to other forms of hospital care.
 
 
 
-## Conclusions
+# Conclusion
 Despite the limitations of this analysis, both sets of results (insurer and hospital level) suggest that private insurers and hospitals with greater market shares are able to negotiate more favorable prices for themselves. This implies that prices are lower for the insurer with a greater market share and at the hospital with a smaller market share. Thus, taken at face value, policy aimed at lowering hospital prices should either aim to increase the market power of insurers or to increase hospital competition. 
 
 
 
-## References
+# References
 [Organization for Economic Cooperation and Development, “Health at a Glance: OECD Indicators 2017,” (2017).](https://www.oecd.org/unitedstates/Health-at-a-Glance-2017-Key-Findings-UNITED-STATES.pdf)
 
 [Etehad, Melissa, and Kyle Kim, “The U.S. spends more on healthcare than any other country — but not with better health outcomes,” in Los Angeles Times, (Los Angeles: Los Angeles Times, July 18, 2017).](https://www.latimes.com/nation/la-na-healthcare-comparison-20170715-htmlstory.html)
