@@ -1,9 +1,11 @@
 ---
-output: pdf_document
+output: 
+  pdf_document:
+    number_sections: false
 ---
 
 \begin{centering}
-
+\pagenumbering{gobble}
 \normalsize
 .
 
