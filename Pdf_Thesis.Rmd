@@ -149,7 +149,6 @@ primary_data <- primary_data %>%
   filter(!cpt_code %in% c("29881", "45380", "45385", "85027")) %>%  # only looking at radiology services or top 10 procedures
   select(-Medicare)
 
-###########################################################
 primary_data <- primary_data %>% 
   mutate(percent_medicare = (estimate_of_total_cost/medicare_price)*100) %>% 
   select(cpt_code, procedure, provider_name,insurer, estimate_of_total_cost, medicare_price, percent_medicare) %>% 
@@ -230,140 +229,181 @@ primary_data <- primary_data %>%
   right_join(primary_data, by = "provider_name")
 
 # Next, I want to calculate the distance of every hospital to every other hospital and define the markets as certain radius
+
 # Counting number of hospitals that also offer that procedure
-radial_markets_procedure <- data.frame(provider1 = character(), procedure = character(), provider2  = character(), 
-                                      distance = double(), 
-                                      hospital_type1 = character(), hospital_type2 = character(), 
-                                      hospital_rating1 = character(), hospital_rating2 = character())
 
-provider_coordinates <- primary_data %>% 
-  count(provider_name, lat, long, `Hospital Type`, `Hospital overall rating`) %>% 
-  select(-n) %>% 
-  mutate(lat = (lat*pi)/180, long = (long*pi)/180)
-
-for (i in provider_coordinates$provider_name) {
-
-provider_procedure <- primary_data %>% 
-  count(provider_name, procedure) %>% 
-  select(-n) %>% 
-  filter(provider_name == i)
-
-provider <- provider_coordinates %>% 
-  filter(provider_name == i)
-
-provider1 <- provider$provider_name
-lat1 <- provider$lat
-long1 <- provider$long
-hospital_type1 <- provider$`Hospital Type`
-hospital_rating1 <- provider$`Hospital overall rating`
-
-radial_markets_procedure <- primary_data %>% 
-  count(provider_name, procedure, lat, long, `Hospital Type`, `Hospital overall rating`) %>% 
-  select(-n) %>% 
-  mutate(lat = (lat*pi)/180, long = (long*pi)/180) %>% 
-  filter(procedure %in% provider_procedure$procedure) %>% 
-  rename(provider2 = provider_name, lat2 = lat, long2 = long, hospital_type2 = `Hospital Type`, 
-         hospital_rating2 = `Hospital overall rating`) %>% 
-  mutate(provider1 = provider1,
-         lat1 = lat1, long1 = long1, 
-         hospital_type1 = hospital_type1,
-         hospital_rating1 = hospital_rating1,
-         dLat = (lat2 - lat1), dLong = (long2 - long1), 
-         a = (sin(dLat/2)^2) + (cos(lat1) * cos(lat2) * sin(dLong/2)^2),
-         c = 2 * atan2(sqrt(a), sqrt(1 - a)), 
-         distance = 3959*c) %>% 
-  filter(distance <= 25) %>% 
-  select(provider1, procedure, provider2, distance, hospital_type1, hospital_type2, hospital_rating1, hospital_rating2) %>% 
-  bind_rows(radial_markets_procedure)
-
-}
+  # Creating an empty data frame for loop to add to
+  # Contains the distance between each hospital pair present in my data (later narrow down to hospitals that are 5 or 25mi apart)
+      radial_markets_procedure <- data.frame(provider1 = character(), procedure = character(), provider2  = character(), 
+                                            distance = double(), 
+                                            hospital_type1 = character(), hospital_type2 = character(), 
+                                            hospital_rating1 = character(), hospital_rating2 = character())
   
-primary_data <- radial_markets_procedure %>% 
-  filter(!is.na(hospital_rating2)) %>% 
-  group_by(provider1, procedure) %>% 
-  summarize(n_hosp_25mi_p = n()) %>% 
-  ungroup() %>% 
-  rename(provider_name = provider1) %>% 
-  right_join(primary_data, by = c("provider_name", "procedure"))
-
-primary_data <- radial_markets_procedure %>% 
-  filter(!is.na(hospital_rating2), distance <= 10) %>% 
-  group_by(provider1, procedure) %>% 
-  summarize(n_hosp_10mi_p = n()) %>% 
-  ungroup() %>% 
-  rename(provider_name = provider1) %>% 
-  right_join(primary_data, by = c("provider_name", "procedure"))
-
-primary_data <- radial_markets_procedure %>% 
-  filter(!is.na(hospital_rating2), distance <= 5) %>% 
-  group_by(provider1, procedure) %>% 
-  summarize(n_hosp_5mi_p = n()) %>% 
-  ungroup() %>% 
-  rename(provider_name = provider1) %>% 
-  right_join(primary_data, by = c("provider_name", "procedure"))
+  # Create a data set containing every provider and its coordinates, as well as the provider type and overall rating (hospitals only)    
+      provider_coordinates <- primary_data %>% 
+        count(provider_name, lat, long, `Hospital Type`, `Hospital overall rating`) %>% # one observation per hospital
+        select(-n) %>% 
+        mutate(lat = (lat*pi)/180, long = (long*pi)/180) # converting latitude and longitude to radians
+      
+  # Creating a loop that will compute the distance between every hospital in the data set
+      for (i in provider_coordinates$provider_name) { # hospitals and corresponding coordinates taken 
+      
+        # Creating a data set of the procedures offered at hospital i (at least one contract with a private insurer for that procedure)
+          provider_procedure <- primary_data %>% 
+            count(provider_name, procedure) %>%
+            select(-n) %>% 
+            filter(provider_name == i)
+        
+        # Isolating the coordinates, hospital type, and hospital overall rating for the particular hospital i  
+          provider <- provider_coordinates %>% 
+            filter(provider_name == i)
+        
+        # Assigning each value in the one row data set to an object to be referenced in the next step
+          provider1 <- provider$provider_name
+          lat1 <- provider$lat
+          long1 <- provider$long
+          hospital_type1 <- provider$`Hospital Type`
+          hospital_rating1 <- provider$`Hospital overall rating`
+          
+        # Creating a data set that contains all hospital pairings that are less than or equal to 25 miles apart and offer the same procedure
+          radial_markets_procedure <- primary_data %>% 
+            count(provider_name, procedure, lat, long, `Hospital Type`, `Hospital overall rating`) %>% # one observation per provider-procedure combination
+            select(-n) %>% 
+            mutate(lat = (lat*pi)/180, long = (long*pi)/180) %>% # converting latitude and longitude to radians
+            filter(procedure %in% provider_procedure$procedure) %>% # selecting only hospitals that offer at least one of the same procedures as hospital i
+            rename(provider2 = provider_name, lat2 = lat, long2 = long, hospital_type2 = `Hospital Type`, 
+                   hospital_rating2 = `Hospital overall rating`) %>% # all of this data is relevant to the hospitals surrounding hospital i
+            mutate(provider1 = provider1, # name of hospital i (all values in column the same)
+                   lat1 = lat1, long1 = long1, # coordinates of hospital i (all values in each column the same)
+                   hospital_type1 = hospital_type1,
+                   hospital_rating1 = hospital_rating1,
+                   dLat = (lat2 - lat1), dLong = (long2 - long1), # calculating distance in radians between latitude and longitude
+                   a = (sin(dLat/2)^2) + (cos(lat1) * cos(lat2) * sin(dLong/2)^2),
+                   c = 2 * atan2(sqrt(a), sqrt(1 - a)), 
+                   distance = 3959*c) %>% # converting this distance to miles (3959mi is the radius of the Earth)
+            filter(distance <= 25) %>% # filtering only for relevant hospital pairings (those that are potential competitors)
+            select(provider1, procedure, provider2, distance, hospital_type1, hospital_type2, hospital_rating1, hospital_rating2) %>% 
+            bind_rows(radial_markets_procedure) # adding data for each hospital i containing the distance between it and each hospital offering that procedure
+      
+      }
+    
+    # Counting number of hospitals that also offer procedure (both providers are hospitals)
+        # Using the data set created by the loop above I count how many hospitals within a 25mi radius of each also offer the same procedure
+          primary_data <- radial_markets_procedure %>%
+            filter(hospital_type1 != "Non-Hospital Providers", hospital_type2 != "Non-Hospital Providers") %>% 
+            group_by(provider1, procedure) %>% 
+            summarize(n_hosp_25mi_p = n()) %>% # counting the number of hospitals that also offer that procedure within a 25mi radius
+            ungroup() %>% 
+            rename(provider_name = provider1) %>% 
+            right_join(primary_data, by = c("provider_name", "procedure")) # adding this as a column to my primary data
+          
+        # Same idea as the code above, just restricted to hospitals within a 10mi radius 
+          primary_data <- radial_markets_procedure %>% 
+            filter(hospital_type1 != "Non-Hospital Providers", hospital_type2 != "Non-Hospital Providers", distance <= 10) %>% 
+            group_by(provider1, procedure) %>% 
+            summarize(n_hosp_10mi_p = n()) %>% 
+            ungroup() %>% 
+            rename(provider_name = provider1) %>% 
+            right_join(primary_data, by = c("provider_name", "procedure")) # adding this as another column to my primary data
+          
+        # Same idea as the code above, just restricted to hospitals within a 5mi radius   
+          primary_data <- radial_markets_procedure %>% 
+            filter(hospital_type1 != "Non-Hospital Providers", hospital_type2 != "Non-Hospital Providers", distance <= 5) %>% 
+            group_by(provider1, procedure) %>% 
+            summarize(n_hosp_5mi_p = n()) %>% 
+            ungroup() %>% 
+            rename(provider_name = provider1) %>% 
+            right_join(primary_data, by = c("provider_name", "procedure"))
+          
+    # Now counting all providers that also offer that procedure
+        # Counting all providers within a 25mi radius of each also offer the same procedure
+          primary_data <- radial_markets_procedure %>%
+            group_by(provider1, procedure) %>% 
+            summarize(n_provider_25mi_p = n()) %>% # counting the number of providers that also offer that procedure within a 25mi radius
+            ungroup() %>% 
+            rename(provider_name = provider1) %>% 
+            right_join(primary_data, by = c("provider_name", "procedure")) # adding this as a column to my primary data
+          
+        # Same idea as the code above, just restricted to hospitals within a 10mi radius 
+          primary_data <- radial_markets_procedure %>% 
+            filter(distance <= 10) %>% 
+            group_by(provider1, procedure) %>% 
+            summarize(n_provider_10mi_p = n()) %>% 
+            ungroup() %>% 
+            rename(provider_name = provider1) %>% 
+            right_join(primary_data, by = c("provider_name", "procedure")) # adding this as another column to my primary data
+          
+        # Same idea as the code above, just restricted to hospitals within a 5mi radius   
+          primary_data <- radial_markets_procedure %>% 
+            filter(distance <= 5) %>% 
+            group_by(provider1, procedure) %>% 
+            summarize(n_provider_5mi_p = n()) %>% 
+            ungroup() %>% 
+            rename(provider_name = provider1) %>% 
+            right_join(primary_data, by = c("provider_name", "procedure"))
 
 # Counting total number of hospitals
-radial_markets <- data.frame(provider1 = character(), provider2  = character(), 
-                                      distance = double(), 
-                                      hospital_type1 = character(), hospital_type2 = character(), 
-                                      hospital_rating1 = character(), hospital_rating2 = character())
-
-provider_coordinates <- primary_data %>% 
-  count(provider_name, lat, long, `Hospital Type`, `Hospital overall rating`) %>% 
-  select(-n) %>% 
-  mutate(lat = (lat*pi)/180, long = (long*pi)/180)
-
-for (i in provider_coordinates$provider_name) {
-
-provider <- provider_coordinates %>% 
-  filter(provider_name == i)
-
-provider1 <- provider$provider_name
-lat1 <- provider$lat
-long1 <- provider$long
-hospital_type1 <- provider$`Hospital Type`
-hospital_rating1 <- provider$`Hospital overall rating`
-
-radial_markets <- provider_coordinates %>% 
-  rename(provider2 = provider_name, lat2 = lat, long2 = long, hospital_type2 = `Hospital Type`, 
-         hospital_rating2 = `Hospital overall rating`) %>% 
-  mutate(provider1 = provider1,
-         lat1 = lat1, long1 = long1, 
-         hospital_type1 = hospital_type1,
-         hospital_rating1 = hospital_rating1,
-         dLat = (lat2 - lat1), dLong = (long2 - long1), 
-         a = (sin(dLat/2)^2) + (cos(lat1) * cos(lat2) * sin(dLong/2)^2),
-         c = 2 * atan2(sqrt(a), sqrt(1 - a)), 
-         distance = 3959*c) %>% 
-  filter(distance <= 25) %>% 
-  select(provider1, provider2, distance, hospital_type1, hospital_type2, hospital_rating1, hospital_rating2) %>% 
-  bind_rows(radial_markets)
-
-}
-  
-primary_data <- radial_markets %>% 
-  filter(!is.na(hospital_rating2)) %>% 
-  group_by(provider1) %>% 
-  summarize(n_hosp_25mi_total = n()) %>% 
-  ungroup() %>% 
-  rename(provider_name = provider1) %>% 
-  right_join(primary_data, by = "provider_name")
-
-primary_data <- radial_markets %>% 
-  filter(!is.na(hospital_rating2), distance <= 10) %>% 
-  group_by(provider1) %>% 
-  summarize(n_hosp_10mi_total = n()) %>% 
-  ungroup() %>% 
-  rename(provider_name = provider1) %>% 
-  right_join(primary_data, by = "provider_name")
-
-primary_data <- radial_markets %>% 
-  filter(!is.na(hospital_rating2), distance <= 5) %>% 
-  group_by(provider1) %>% 
-  summarize(n_hosp_5mi_total = n()) %>% 
-  ungroup() %>% 
-  rename(provider_name = provider1) %>% 
-  right_join(primary_data, by = "provider_name")
+    radial_markets <- data.frame(provider1 = character(), provider2  = character(), 
+                                          distance = double(), 
+                                          hospital_type1 = character(), hospital_type2 = character(), 
+                                          hospital_rating1 = character(), hospital_rating2 = character())
+    
+    provider_coordinates <- primary_data %>% 
+      count(provider_name, lat, long, `Hospital Type`, `Hospital overall rating`) %>% 
+      select(-n) %>% 
+      mutate(lat = (lat*pi)/180, long = (long*pi)/180)
+    
+    for (i in provider_coordinates$provider_name) {
+    
+    provider <- provider_coordinates %>% 
+      filter(provider_name == i)
+    
+    provider1 <- provider$provider_name
+    lat1 <- provider$lat
+    long1 <- provider$long
+    hospital_type1 <- provider$`Hospital Type`
+    hospital_rating1 <- provider$`Hospital overall rating`
+    
+    radial_markets <- provider_coordinates %>% 
+      rename(provider2 = provider_name, lat2 = lat, long2 = long, hospital_type2 = `Hospital Type`, 
+             hospital_rating2 = `Hospital overall rating`) %>% 
+      mutate(provider1 = provider1,
+             lat1 = lat1, long1 = long1, 
+             hospital_type1 = hospital_type1,
+             hospital_rating1 = hospital_rating1,
+             dLat = (lat2 - lat1), dLong = (long2 - long1), 
+             a = (sin(dLat/2)^2) + (cos(lat1) * cos(lat2) * sin(dLong/2)^2),
+             c = 2 * atan2(sqrt(a), sqrt(1 - a)), 
+             distance = 3959*c) %>% 
+      filter(distance <= 25) %>% 
+      select(provider1, provider2, distance, hospital_type1, hospital_type2, hospital_rating1, hospital_rating2) %>% 
+      bind_rows(radial_markets)
+    
+    }
+      
+    primary_data <- radial_markets %>% 
+      filter(!is.na(hospital_rating2)) %>% 
+      group_by(provider1) %>% 
+      summarize(n_hosp_25mi_total = n()) %>% 
+      ungroup() %>% 
+      rename(provider_name = provider1) %>% 
+      right_join(primary_data, by = "provider_name")
+    
+    primary_data <- radial_markets %>% 
+      filter(!is.na(hospital_rating2), distance <= 10) %>% 
+      group_by(provider1) %>% 
+      summarize(n_hosp_10mi_total = n()) %>% 
+      ungroup() %>% 
+      rename(provider_name = provider1) %>% 
+      right_join(primary_data, by = "provider_name")
+    
+    primary_data <- radial_markets %>% 
+      filter(!is.na(hospital_rating2), distance <= 5) %>% 
+      group_by(provider1) %>% 
+      summarize(n_hosp_5mi_total = n()) %>% 
+      ungroup() %>% 
+      rename(provider_name = provider1) %>% 
+      right_join(primary_data, by = "provider_name")
 
 
 # Top CPT codes from NH Hospital Association
@@ -405,7 +445,7 @@ count(typical_patient_complexity) %>%
   select(-n) %>% 
   right_join(primary_data, by = "typical_patient_complexity")
 
-# trying to fix precision of cost estimates
+# Fixing precision of cost estimates variable
 primary_data <- primary_data %>% 
   count(precision_of_the_cost_estimate) %>% 
   mutate(precision_of_cost_estimate = case_when(n == 773 ~ "high",
@@ -419,11 +459,13 @@ primary_data <- primary_data %>%
          commercial_market_share = case_when(insurer == "Anthem NH" ~ 39,
                                              insurer == "Harvard Pilgrim HC" ~ 27,
                                              insurer == "CIGNA" ~ 20))
+
 ```
 
 ```{r, include=FALSE}
 primary_regression_data <- primary_data %>% 
-  filter(!insurer %in% c("Uninsured", "Other"), !is.na(`ZIP Code`), !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283")) %>% 
+  filter(!insurer %in% c("Uninsured", "Other"), !is.na(`ZIP Code`), !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"),
+         precision_of_cost_estimate != "low") %>% 
   mutate(`Hospital Quality` = as.numeric(`Hospital overall rating`))
 
 lm_insurers1 <- lm(data = primary_regression_data,
@@ -555,6 +597,33 @@ lm_uninsured_2 <- lm(data = uninsured_data,
                      median_household_income + percent_pop_over65 + pop_density + factor(procedure))
 
 summary(lm_uninsured_2)
+
+lm_providers_1 <- lm(data = primary_regression_data,
+                   formula = percent_medicare ~ n_provider_5mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
+                     median_household_income + percent_pop_over65 + pop_density +
+                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
+summary(lm_providers_1)
+
+lm_providers_2 <- lm(data = primary_regression_data,
+                   formula = percent_medicare ~ n_provider_25mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
+                     median_household_income + percent_pop_over65 + pop_density +
+                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
+summary(lm_providers_2)
+
+
+lm_providers_insurers_1 <- lm(data = primary_regression_data,
+                   formula = percent_medicare ~ n_provider_5mi_p*Anthem_NH + n_provider_5mi_p*Harvard_Pilgrim_HC + n_provider_5mi_p*CIGNA + 
+                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
+                     procedure)
+
+summary(lm_providers_insurers_1)
+
+lm_providers_insurers_2 <- lm(data = primary_regression_data,
+                   formula = percent_medicare ~ n_provider_25mi_p*Anthem_NH + n_provider_25mi_p*Harvard_Pilgrim_HC + n_provider_25mi_p*CIGNA + 
+                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
+                     procedure)
+
+summary(lm_providers_insurers_2)
 ```
 
 \Large {\bf Abstract}
@@ -965,7 +1034,39 @@ Each service on HealthCost is identified with a description (e.g. "X-Ray - Abdom
 
 Additionally, HealthCost includes indicators of variability for each estimate under the "Precision of the Cost Estimate" field, where "High" corresponds to cost estimates with little variability from one patient to the next, and risk-adjustment indicators under the "Typical Patient Complexity" field, which are evaluated for each hospital within that procedure. For example, a hospital may attract an average population when considering all procedures but a more complex population when only considering brain MRIs as compared to other hospitals. Thus, for brain MRIs, this hospital would have a "High" typical patient complexity as it tends to serve higher complexity patients than other hospitals. Lastly, HealthCost does not include visits where an infrequent and high cost procedure is performed in conjunction with a HealthCost procedure because the more expensive procedure may have also impacted the cost for performing the more routine services. 
 
-The data available on HealthCost allow me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. I also keep values for "Typical Patient Complexity" and "Precision of the Cost Estimate" to use as controls in my analysis. 
+The data available on HealthCost allow me to construct a data set containing the estimated price for each procedure and each provider-insurer combination for which data was available. I also keep values for "Typical Patient Complexity" and "Precision of the Cost Estimate" to use as controls in my analysis. Because the prices are "bundled" and I want to standardize these prices according to unbundled Medicare prices, I deflate the private prices by a certain factor per procedure. This factor is equal to the amount I would have to multiply the price faced by each of the major private insurers such that the median price for the procedure as paid by these insurers is equivalent to 200% of the Medicare price for that procedure. This standardization factor is 0.2-0.6 for most of the procedures I consider.
+
+```{r, echo=FALSE, results = "asis", fig.align='center', message=FALSE}
+all_procedures <- primary_data %>% 
+  filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283")) %>%
+  group_by(procedure) %>% 
+  summarize(Median = median(adj_cost_estimate)) %>% 
+  mutate(insurer = "All Payers") %>% 
+  ungroup()
+
+all_procedures <- primary_data %>%
+  filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283")) %>%
+  group_by(procedure, insurer) %>% 
+  summarize(Median = median(adj_cost_estimate)) %>% 
+  ungroup() %>% 
+  bind_rows(all_procedures) %>% 
+  mutate(procedure = str_replace_all(procedure, "&", "/")) %>% 
+  spread(key = insurer, value = Median) %>% 
+  select(procedure, `All Payers`, Medicare, `Anthem NH`, `Harvard Pilgrim HC`, CIGNA, Uninsured) %>% 
+  rename("Procedure" = "procedure", "All" = "All Payers", "Anthem" = "Anthem NH", "HP" = "Harvard Pilgrim HC") %>% 
+  mutate(Procedure = str_remove_all(Procedure, "\\s*\\([^\\)]+\\)"),
+         Procedure = str_replace_all(Procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
+         Procedure = str_replace_all(Procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
+         Procedure = str_replace_all(Procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
+         Procedure = str_replace_all(Procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast")) %>% 
+  data.frame() %>% 
+  arrange(desc(All))
+
+
+stargazer(all_procedures, summary = FALSE, rownames = FALSE, font.size = "footnotesize", header = FALSE, align = TRUE, column.sep.width = "0.5pt",
+          digits = 0, title = "Median Price for Radiology Services by Payer")
+```
+
 
 ## CMS Data
 ### Medicare Prices
@@ -975,7 +1076,7 @@ where ${RVU}_{j}^{work}$ denotes the Relative Value Unit (RVU) for the physician
 
 Medicare treats all of New Hampshire as one locality, meaning that all hospitals in New Hampshire that are reimbursed through prospective payments are reimbursed the same amount for outpatient services through Medicare Part B. However, 13 out of the 32 hospitals in my dataset are Critical Access Hospitals (CAHs) that are eligible to receive cost-based reimbursements from Medicare. I was unable to obtain data on exactly how much these CAHs are reimbursed by CPT code and therefore use the prospective payment rates as an approximation for what they are reimbursed by Medicare. This should not have a major impact on the analysis as the focus is on private insurers, and I primarily use Medicare prices for the purposes of standardization of the private insurer prices available through NH HealthCost. 
 
-### Hospital Quality
+## Hospital Quality
 The second dataset provided by CMS is the [Hospital Compare data](https://data.medicare.gov/data/hospital-compare), which provides measures of quality. The hospital overall ratings attempt to capture the quality of care a hospital may provide compared to other hospitals based on the quality measures reported on Hospital Compare, summarizing into a single rating more than 60 measures in seven measure groups: mortality, safety of care, readmission, patient experience, effectiveness of care, timeliness of care, and efficient use of medical imaging. Hospitals are ranked out of five stars, and my dataset includes two hospitals with two stars, 11 hospitals with three stars, 16 hospitals with four stars, and three hospitals with five stars for their overall ratings.
 
 
@@ -1104,7 +1205,6 @@ The coefficient on the number of hospitals within a hospital's HRR is consistent
 
 In addition the the variables concerned with the hospitals' market share, the control variables also provide some interesting coefficients. Higher typical patient complexity for procedure $j$ at hospital $h$ is positively associated with price, which is intuitive given that hospitals with higher typical patient complexity for procedure $j$ are likely perceived to offer higher quality service for that procedure; this provides further control for quality variation because patients requiring more complex care will value hospital specialization in this area of care, and hospitals that do decide to specialize in providing procedure $j$ may invest in more expensive equipment or techniques. The coefficient estimates that hospital's with "High" typical patient complexity for procedure $j$ receive roughly 15% higher prices than hospitals with "Medium" patient complexity for procedure $j$ and 30% higher prices than hospitals with "Low" typical patient complexity for procedure $j$. Overall hospital quality, after controlling for other hospital characteristics is consistently statistically equivalent to zero, which is in line with my theoretical framework that overall quality has little to do with prices for radiology services, and it appears that most quality variation may be accounted for by the "Typical Patient Complexity" control. The median household income of the county in which the hospital is associated is unsurprisingly positively associated with hospital prices, though more statistically so at the procedure-level. However, the controls for the percent of the population 65 and older and population density are consistently statistically significant and negative. This suggests when hospitals potentially serve a large number of Medicare patients, there may be downward pressure on prices, contrary to cost-shifting theory.
 
-The last set of results presented in Table 5 shows the interaction between hospital density and each insurer, where hospital density is measured by counting the number of hospitals within a 25-mile radius of hospital $h$ that also offer procedure $j$ as I find this to be the most reasonable specification for hospital competition. The estimated coefficients suggest that the prices Harvard Pilgrim negotiates with hospitals are associated more strongly with the number of hospital's in that hospitals market than for Anthem and CIGNA. The addition of one more hospital that offers procedure $j$ within hospital $h$'s market and also has a contract with Harvard Pilgrim is associated with a price decrease for procedure $j$ at hospital $h$ equivalent to about 12% of the Medicare price for that procedure.
 ```{r, echo=FALSE, results = "asis", message=FALSE}
 stargazer(lm_hospitals_insurers_2,  header = FALSE,
           omit = "procedure", omit.labels = "Procedure Fixed Effects",
@@ -1128,6 +1228,8 @@ stargazer(lm_hospitals_insurers_2,  header = FALSE,
                                "CIGNA"),
           dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
 ```
+
+The last set of results presented in Table 5 shows the interaction between hospital density and each insurer, where hospital density is measured by counting the number of hospitals within a 25-mile radius of hospital $h$ that also offer procedure $j$ as I find this to be the most reasonable specification for hospital competition. The estimated coefficients suggest that the prices Harvard Pilgrim negotiates with hospitals are associated more strongly with the number of hospital's in that hospitals market than for Anthem and CIGNA. The addition of one more hospital that offers procedure $j$ within hospital $h$'s market and also has a contract with Harvard Pilgrim is associated with a price decrease for procedure $j$ at hospital $h$ equivalent to about 12% of the Medicare price for that procedure.
 
 
 # Discussion
