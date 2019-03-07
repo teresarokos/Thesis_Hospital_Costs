@@ -472,6 +472,12 @@ primary_regression_data <- primary_data %>%
   filter(!insurer %in% c("Uninsured", "Other"), !is.na(`ZIP Code`), !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"),
          precision_of_cost_estimate != "low", locality == "NEW HAMPSHIRE")
 
+stata_data <- clean_names(primary_regression_data, case = "snake")
+
+write.dta(stata_data, "stata_data.dta")
+
+##########################
+
 felm_insurers1 <- felm(percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA | 0 | 0 | 0, 
                        data = primary_regression_data)
 
@@ -482,10 +488,13 @@ felm_insurers3 <- felm(formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_
                          provider_name,
                        data = primary_regression_data)
 
+##########################
+
 felm_market_share <- felm(formula = percent_medicare ~ commercial_market_share | factor(procedure) + factor(provider_name) | 0 | procedure + 
                          provider_name,
                        data = subset(primary_regression_data, insurer != Medicare))
-summary(felm_market_share)
+
+############################
 
 felm_hospitals1 <- felm(data = primary_regression_data,
                         formula = percent_medicare ~ n_hosp_hsa_total + typical_patient_complexity_scale + `Hospital Quality` + 
@@ -526,6 +535,8 @@ felm_hospitals8 <- felm(data = primary_regression_data,
                         formula = percent_medicare ~ n_hosp_25mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
                           median_household_income + percent_pop_over65 + pop_density +
                           Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
+
+###########################
 
 felm_hospitals_insurers_1 <- felm(data = primary_regression_data,
                                   formula = percent_medicare ~ n_hosp_hsa_p*Anthem_NH + n_hosp_hsa_p*Harvard_Pilgrim_HC + n_hosp_hsa_p*CIGNA + 
@@ -1063,7 +1074,7 @@ The primary coefficient of interest is $\hat \zeta_k$ which estimates how the ad
 # Results
 The first set of results presented in Table 2 demonstrate that there are statistically significant differences in the prices paid by each insurer for a particular service at a particular hospital. Standard errors are clustered by procedure and hospital when procedure and hospital fixed effects are included. The coefficients are presented as the average percentage *above* the Medicare price that each insurer pays as Medicare is the omitted group and therefore is expected to pay 100% of the Medicare price. In the primary regression (column 1), these estimated coefficients suggest that on average Anthem pays 181% the Medicare price, Harvard Pilgrim pays 206% the Medicare price, and CIGNA 219% the Medicare price. Alternatively, this means that on average Harvard Pilgrim pays 13.9% more than Anthem and CIGNA pays 21.2% more than Anthem. A basic fixed effects linear model of price on market share results in a coefficient on insurer market share that estimates a 1% increase in insurer statewide market share is associated with a 2% decrease in prices.
 ```{r, echo=FALSE, results = "asis", fig.align='center', message=FALSE}
-stargazer(felm_insurers3, felm_insurers2, felm_insurers1, felm_market_share, header = FALSE,
+stargazer(felm_insurers3, felm_insurers2, felm_insurers1, felm_market_share, header = FALSE, type = "text",
           omit = c("factor(provider_name)", "factor(procedure)"), omit.labels = c("Hospital Fixed Effects", "Procedure Fixed Effects"),
           keep.stat = c("n", "rsq"),
           title = "Private Insurance Carrier and Relative Prices",
