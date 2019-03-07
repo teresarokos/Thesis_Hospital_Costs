@@ -5,6 +5,8 @@ header-includes:
     - \renewcommand{\thesection}{\Roman{section}} 
     - \renewcommand{\thesubsection}{\thesection.\Roman{subsection}}
     - \usepackage{dcolumn}
+    - \usepackage{booktabs}
+    - \usepackage{longtable}
 output:
   pdf_document:
     number_sections: true
@@ -37,6 +39,8 @@ library(foreign)
 library(purrr)
 library(ggrepel)
 library(lfe)
+library(kableExtra)
+library(formattable)
 ```
 
 ```{r, include=FALSE}
@@ -975,13 +979,21 @@ all_procedures <- primary_data %>%
          Procedure = str_replace_all(Procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
          Procedure = str_replace_all(Procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
          Procedure = str_replace_all(Procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
-         Procedure = str_replace_all(Procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast")) %>% 
+         Procedure = str_replace_all(Procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast"),
+         All = currency(All),
+         Medicare = currency(Medicare),
+         Anthem = currency(Anthem),
+         HP = currency(HP),
+         CIGNA = currency(CIGNA),
+         Uninsured = currency(Uninsured)) %>% 
   data.frame() %>% 
   arrange(desc(All))
 
+kable(all_procedures, format = "latex", caption = "Median Price for Radiology Services by Payer", booktabs = T, digits = round(2)) %>%
+  kable_styling(latex_options = "scale_down")
 
-stargazer(all_procedures, summary = FALSE, rownames = FALSE, font.size = "footnotesize", header = FALSE, align = TRUE, column.sep.width = "0.5pt",
-          digits = 0, title = "Median Price for Radiology Services by Payer")
+# stargazer(all_procedures, summary = FALSE, rownames = FALSE, font.size = "footnotesize", header = FALSE, align = TRUE, column.sep.width = "0.5pt",
+#           digits = 0, title = "Median Price for Radiology Services by Payer")
 ```
 
 However, this variation persists even when costs and quality are reasonably assumed to be fixed within the same hospital. Controlling for procedure, across hospital price variation accounts for 16.4% of the total variation but *within* hospital price variation accounts for a further 17.0% of the total variation in my data. For the same service at the same hospital, different payers are charged vastly different amounts. Figure 5 shows the different prices paid by the three major private payers in New Hampshire (Anthem, Harvard Pilgrim, and CIGNA) at the same hospital for spine x-rays (a common outpatient procedure). For all of the hospitals in Figure 5, there is a difference of at least \$100 between what the highest and lowest payers pay.
@@ -1074,19 +1086,25 @@ The primary coefficient of interest is $\hat \zeta_k$ which estimates how the ad
 # Results
 The first set of results presented in Table 2 demonstrate that there are statistically significant differences in the prices paid by each insurer for a particular service at a particular hospital. Standard errors are clustered by procedure and hospital when procedure and hospital fixed effects are included. The coefficients are presented as the average percentage *above* the Medicare price that each insurer pays as Medicare is the omitted group and therefore is expected to pay 100% of the Medicare price. In the primary regression (column 1), these estimated coefficients suggest that on average Anthem pays 181% the Medicare price, Harvard Pilgrim pays 206% the Medicare price, and CIGNA 219% the Medicare price. Alternatively, this means that on average Harvard Pilgrim pays 13.9% more than Anthem and CIGNA pays 21.2% more than Anthem. A basic fixed effects linear model of price on market share results in a coefficient on insurer market share that estimates a 1% increase in insurer statewide market share is associated with a 2% decrease in prices.
 ```{r, echo=FALSE, results = "asis", fig.align='center', message=FALSE}
-stargazer(felm_insurers3, felm_insurers2, felm_insurers1, felm_market_share, header = FALSE, type = "text",
-          omit = c("factor(provider_name)", "factor(procedure)"), omit.labels = c("Hospital Fixed Effects", "Procedure Fixed Effects"),
+stargazer(felm_insurers1, felm_insurers2, felm_insurers3, felm_market_share, header = FALSE, 
+          add.lines = list(c("Procedure Fixed Effects", "No", "Yes", "Yes", "Yes"), 
+                           c("Hospital Fixed Effects", "No", "No", "Yes", "Yes"),
+                           c("", "", "", "", ""),
+                           c("Clustered Standard Errors", "No", "Yes", "Yes", "Yes")),
           keep.stat = c("n", "rsq"),
           title = "Private Insurance Carrier and Relative Prices",
           covariate.labels = c("Anthem", "Harvard Pilgrim", "CIGNA", "Commercial Market Share", "Constant (Medicare)"), 
-          dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
+          dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize", table.layout = "=ld#c-t-a-s-n")
 ```
 The positive direction of the coefficients is unsurprising as Medicare consistently reimburses providers at much lower rates than do private insurers. The coefficients are estimated using standardized prices that attempt to account for the bundled nature of payments and match prior literature. However, it is interesting to note that among the inpatient services they examine, Cooper et al. (2015) find the greatest disparity in Medicare versus private reimbursement for lower limb MRIs, the only radiology service they consider, estimating that private insurers pay on average four times the Medicare price, so perhaps Medicare is particularly able to set low prices for radiology services given the low per-unit cost of radiology services. Additionally, the price data from HealthCost reflects "bundled" prices as detailed in Section III, so they are likely somewhat inflated compared to the Medicare prices. Importantly however, HealthCost bundles payments in the same way across all three private insurers and therefore the variation in the prices paid by each insurer is unaffected by this imperfect standardization to the Medicare price.
 
 The second set of results presented in Tables 3-4 suggest that the number of hospitals in a hospital's market is negatively related to price at a statistically significant level across all definitions of a hospital's  market. Standard errors are clustered by procedure. Table 3 presents the results where markets are defined at the hospital level by HSA/HRR or radius, and Table 4 presents the results where markets are defined at the hospital-procedure level by HSA/HRR or radius. These regressions estimate that the addition of one hospital to a hospital's local market (HSA and 5-mile radius definitions) is associated with a decrease in prices equivalent to 10-13% of the Medicare price for that procedure, and if one hospital is added to a hospital's larger market, the associated price decrease is estimated to be roughly 3% of the Medicare price. On the whole, these results suggest that, controlling for typical patient complexity, hospital quality, and county level characteristics, the greater the number of hospitals in a hospital's market, the lower the prices at that hospital are, and that competitive pressures may be more intense at the loval market level.
 ```{r, echo=FALSE, results = "asis", message=FALSE}
 stargazer(felm_hospitals1, felm_hospitals2, felm_hospitals5, felm_hospitals6, header = FALSE,
-          omit = "procedure", omit.labels = "Procedure Fixed Effects",
+          add.lines = list(c("Procedure Fixed Effects", "Yes", "Yes", "Yes", "Yes"), 
+                           c("Hospital Fixed Effects", "Yes", "Yes", "Yes", "Yes"),
+                           c("", "", "", "", ""),
+                           c("Clustered Standard Errors", "Yes", "Yes", "Yes", "Yes")),
           keep.stat = c("n", "rsq"),
           title = "Hospital Competition and Relative Price",
           covariate.labels = c("Total Hospitals in HSA",
@@ -1102,7 +1120,7 @@ stargazer(felm_hospitals1, felm_hospitals2, felm_hospitals5, felm_hospitals6, he
                                "Harvard Pilgrim",
                                "CIGNA",
                                "Constant (Medicare)"), 
-          dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
+          dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize", table.layout = "=ld#c-t-a-s-n")
 
 ```
 
@@ -1110,7 +1128,10 @@ stargazer(felm_hospitals1, felm_hospitals2, felm_hospitals5, felm_hospitals6, he
 
 stargazer(felm_hospitals3, felm_hospitals4, felm_hospitals7, felm_hospitals8,
           header = FALSE,
-          omit = "procedure", omit.labels = "Procedure Fixed Effects", 
+          add.lines = list(c("Procedure Fixed Effects", "Yes", "Yes", "Yes", "Yes"), 
+                           c("Hospital Fixed Effects", "Yes", "Yes", "Yes", "Yes"),
+                           c("", "", "", "", ""),
+                           c("Clustered Standard Errors", "Yes", "Yes", "Yes", "Yes")),
           keep.stat = c("n", "rsq"),
           title = "Hospital Competition by Procedure and Relative Price",
           covariate.labels = c("Hospitals in HSA w/ procedure",
@@ -1126,7 +1147,7 @@ stargazer(felm_hospitals3, felm_hospitals4, felm_hospitals7, felm_hospitals8,
                                "Harvard Pilgrim",
                                "CIGNA",
                                "Constant (Medicare)"), 
-          dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
+          dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize", table.layout = "=ld#c-t-a-s-n")
 
 
 ```
@@ -1135,7 +1156,10 @@ In addition the the variables concerned with the hospitals' market share, the co
 
 ```{r, echo=FALSE, results = "asis", message=FALSE}
 stargazer(felm_hospitals_insurers_1, felm_hospitals_insurers_2,  header = FALSE,
-          omit = "procedure", omit.labels = "Procedure Fixed Effects",
+          add.lines = list(c("Procedure Fixed Effects", "Yes", "Yes", "Yes", "Yes"), 
+                           c("Hospital Fixed Effects", "Yes", "Yes", "Yes", "Yes"),
+                           c("", "", "", "", ""),
+                           c("Clustered Standard Errors", "Yes", "Yes", "Yes", "Yes")),
           keep.stat = c("n", "rsq"),
           order = c("n_hosp_hsa_p:Anthem_NH", "n_hosp_hsa_p:Harvard_Pilgrim_HC", "n_hosp_hsa_p:CIGNA", "n_hosp_hsa_p",
                     "n_hosp_hrr_p:Anthem_NH", "n_hosp_hrr_p:Harvard_Pilgrim_HC", "n_hosp_hrr_p:CIGNA", "n_hosp_hrr_p",
@@ -1159,7 +1183,7 @@ stargazer(felm_hospitals_insurers_1, felm_hospitals_insurers_2,  header = FALSE,
                                "Harvard Pilgrim",
                                "CIGNA",
                                "Constant (Medicare)"),
-          dep.var.labels = "Percent of Medicare Price", font.size = "scriptsize")
+          dep.var.labels = "Percent of Medicare Price", font.size = "scriptsize", table.layout = "=ld#c-t-a-s-n")
 ```
 
 ```{r, echo=FALSE, results = "asis", message=FALSE}
