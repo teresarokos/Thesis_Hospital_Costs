@@ -36,10 +36,12 @@ library(plotly)
 library(foreign)
 library(purrr)
 library(ggrepel)
+library(lfe)
 ```
 
 ```{r, include=FALSE}
 
+# Constructing data set from raw NH HealthCost data ###########################################################################################################
 merge_sheets <- function(x) {
  bind_rows(
    x %>%
@@ -94,6 +96,7 @@ primary_data <- primary_data %>%
          provider_name = str_replace_all(provider_name, "Lakes Region General Healthcare", "Lakes Region General Hospital"),
          provider_name = str_replace_all(provider_name, "LRGHealthcareLRGHealthcare", "LRGHealthcare"),
          provider_name = str_replace_all(provider_name, "Dartmouth-Hitchcock Clinic", "Dartmouth-Hitchcock (Manchester)"))
+###############################################################################################################################################################
 
 
 # Constructing Medicare prices and adding to primary data set
@@ -148,30 +151,6 @@ primary_data <- primary_data %>%
   bind_rows(primary_data) %>% 
   filter(!cpt_code %in% c("29881", "45380", "45385", "85027")) %>%  # only looking at radiology services or top 10 procedures
   select(-Medicare)
-
-primary_data <- primary_data %>% 
-  mutate(percent_medicare = (estimate_of_total_cost/medicare_price)*100) %>% 
-  select(cpt_code, procedure, provider_name,insurer, estimate_of_total_cost, medicare_price, percent_medicare) %>% 
-  filter(!insurer %in% c("Medicare", "Other", "Uninsured")) %>% 
-  group_by(cpt_code, procedure) %>% 
-  summarize(medicare_price = mean(medicare_price),
-            med_private_price = median(estimate_of_total_cost),
-            standardization_fct = (2*medicare_price)/med_private_price) %>% 
-  ungroup() %>% 
-  select(cpt_code, procedure, standardization_fct) %>% 
-  right_join(primary_data, by = c("cpt_code", "procedure")) %>% 
-  mutate(standardization_fct = case_when(insurer == "Medicare" ~ 1,
-                                         TRUE ~ standardization_fct),
-         adj_cost_estimate = estimate_of_total_cost*standardization_fct,
-         percent_medicare = (adj_cost_estimate/medicare_price)*100,
-         Anthem_NH = case_when(insurer == "Anthem NH" ~ 1,
-                               insurer != "Anthem NH" ~ 0),
-         Harvard_Pilgrim_HC = case_when(insurer == "Harvard Pilgrim HC" ~ 1,
-                               insurer != "Harvard Pilgrim HC" ~ 0),
-         CIGNA = case_when(insurer == "CIGNA" ~ 1,
-                               insurer != "CIGNA" ~ 0),
-         Medicare = case_when(insurer == "Medicare" ~ 1,
-                               insurer != "Medicare" ~ 0))
 
 # Adding in Hospital Compare data for quality measures
 primary_data <- read_csv("Hospital_Compare_data/Hospital_General_Information_copy.csv") %>% 
@@ -459,177 +438,172 @@ primary_data <- primary_data %>%
          commercial_market_share = case_when(insurer == "Anthem NH" ~ 39,
                                              insurer == "Harvard Pilgrim HC" ~ 27,
                                              insurer == "CIGNA" ~ 20))
+
+# Standardizing prices to Medicare
+primary_data <- primary_data %>% 
+  filter(!insurer %in% c("Medicare", "Other", "Uninsured"), precision_of_cost_estimate != "low", !is.na(`ZIP Code`), locality == "NEW HAMPSHIRE") %>% # restricting only to well estimated prices for the privately insured at hospitals
+  group_by(cpt_code, procedure, locality) %>% # want to standardize each private price relative to medicare_price for that procedure at that locality
+  summarize(medicare_price = mean(medicare_price), # medicare price is the same across all hospitals in each locality
+            med_private_price = median(estimate_of_total_cost), 
+            standardization_fct = (2*medicare_price)/med_private_price) %>% # standardize such that median private price is 200% of the Medicare price
+  ungroup() %>% 
+  select(cpt_code, procedure, locality, standardization_fct) %>% 
+  right_join(primary_data, by = c("cpt_code", "procedure", "locality")) %>% # add this standardization factor as a column to my data
+  # count(procedure, locality, standardization_fct) %>% arrange(locality)
+  mutate(standardization_fct = case_when(insurer == "Medicare" ~ 1, # do not want to change Medicare prices
+                                         TRUE ~ standardization_fct),
+         adj_cost_estimate = estimate_of_total_cost*standardization_fct, # generating deflated price estimates
+         percent_medicare = (adj_cost_estimate/medicare_price)*100, # and standardizing them as a percentage of the medicare price
+         Anthem_NH = case_when(insurer == "Anthem NH" ~ 1,
+                               insurer != "Anthem NH" ~ 0),
+         Harvard_Pilgrim_HC = case_when(insurer == "Harvard Pilgrim HC" ~ 1,
+                               insurer != "Harvard Pilgrim HC" ~ 0),
+         CIGNA = case_when(insurer == "CIGNA" ~ 1,
+                               insurer != "CIGNA" ~ 0),
+         Medicare = case_when(insurer == "Medicare" ~ 1,
+                               insurer != "Medicare" ~ 0),
+         private_payer = case_when(insurer == "Medicare" ~ 0,
+                               insurer != "Medicare" ~ 1),
+         `Hospital Quality` = as.numeric(`Hospital overall rating`))
 ```
 
 ```{r, include=FALSE}
 primary_regression_data <- primary_data %>% 
   filter(!insurer %in% c("Uninsured", "Other"), !is.na(`ZIP Code`), !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"),
-         precision_of_cost_estimate != "low", locality == "NEW HAMPSHIRE") %>% 
-  mutate(`Hospital Quality` = as.numeric(`Hospital overall rating`))
+         precision_of_cost_estimate != "low", locality == "NEW HAMPSHIRE")
 
-lm_insurers1 <- lm(data = primary_regression_data,
-           formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA)
+felm_insurers1 <- felm(percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA | 0 | 0 | 0, 
+                       data = primary_regression_data)
 
-summary(lm_insurers1)
+felm_insurers2 <- felm(formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure, 
+                       data = primary_regression_data)
 
-lm_insurers2 <- lm(data = primary_regression_data,
-           formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
+felm_insurers3 <- felm(formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) + factor(provider_name) | 0 | procedure + 
+                         provider_name,
+                       data = primary_regression_data)
 
-summary(lm_insurers2)
+felm_market_share <- felm(formula = percent_medicare ~ commercial_market_share | factor(procedure) + factor(provider_name) | 0 | procedure + 
+                         provider_name,
+                       data = subset(primary_regression_data, insurer != Medicare))
+summary(felm_market_share)
 
-lm_insurers3 <- lm(data = primary_regression_data,
-           formula = percent_medicare ~ Anthem_NH + Harvard_Pilgrim_HC + CIGNA + provider_name + procedure)
+felm_hospitals1 <- felm(data = primary_regression_data,
+                        formula = percent_medicare ~ n_hosp_hsa_total + typical_patient_complexity_scale + `Hospital Quality` + 
+                          median_household_income + percent_pop_over65 + pop_density +
+                          Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
 
-summary(lm_insurers3)
-anova(lm_insurers3)
+felm_hospitals2 <- felm(data = primary_regression_data,
+                        formula = percent_medicare ~ n_hosp_hrr_total + typical_patient_complexity_scale + `Hospital Quality` + 
+                          median_household_income + percent_pop_over65 + pop_density +
+                          Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
 
-lm_hospitals1 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hsa_total + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
+felm_hospitals3 <- felm(data = primary_regression_data,
+                        formula = percent_medicare ~ n_hosp_hsa_p + typical_patient_complexity_scale + `Hospital Quality` + 
+                          median_household_income + percent_pop_over65 + pop_density +
+                          Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
 
-summary(lm_hospitals1)
+felm_hospitals4 <- felm(data = primary_regression_data,
+                        formula = percent_medicare ~ n_hosp_hrr_p + typical_patient_complexity_scale + `Hospital Quality` + 
+                          median_household_income + percent_pop_over65 + pop_density +
+                          Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
 
-lm_hospitals2 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hrr_total + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
+felm_hospitals5 <- felm(data = primary_regression_data,
+                        formula = percent_medicare ~ n_hosp_5mi_total + typical_patient_complexity_scale + `Hospital Quality` + 
+                          median_household_income + percent_pop_over65 + pop_density +
+                          Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
 
-summary(lm_hospitals2)
+felm_hospitals6 <- felm(data = primary_regression_data,
+                        formula = percent_medicare ~ n_hosp_25mi_total + typical_patient_complexity_scale + `Hospital Quality` + 
+                          median_household_income + percent_pop_over65 + pop_density +
+                          Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
 
-lm_hospitals3 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hsa_p + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
+felm_hospitals7 <- felm(data = primary_regression_data,
+                        formula = percent_medicare ~ n_hosp_5mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
+                          median_household_income + percent_pop_over65 + pop_density +
+                          Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
 
-summary(lm_hospitals3)
+felm_hospitals8 <- felm(data = primary_regression_data,
+                        formula = percent_medicare ~ n_hosp_25mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
+                          median_household_income + percent_pop_over65 + pop_density +
+                          Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
 
-lm_hospitals4 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_hrr_p + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
+felm_hospitals_insurers_1 <- felm(data = primary_regression_data,
+                                  formula = percent_medicare ~ n_hosp_hsa_p*Anthem_NH + n_hosp_hsa_p*Harvard_Pilgrim_HC + n_hosp_hsa_p*CIGNA + 
+                                    typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density 
+                                  | factor(procedure) | 0 | procedure)
 
-summary(lm_hospitals4)
+felm_hospitals_insurers_2 <- felm(data = primary_regression_data,
+                                  formula = percent_medicare ~ n_hosp_hrr_p*Anthem_NH + n_hosp_hrr_p*Harvard_Pilgrim_HC + n_hosp_hrr_p*CIGNA + 
+                                    typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density 
+                                  | factor(procedure) | 0 | procedure)
 
-lm_hospitals5 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_5mi_total + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
+felm_hospitals_insurers_3 <- felm(data = primary_regression_data,
+                                  formula = percent_medicare ~ n_hosp_5mi_p*Anthem_NH + n_hosp_5mi_p*Harvard_Pilgrim_HC + n_hosp_5mi_p*CIGNA + 
+                                    typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density 
+                                    | factor(procedure) | 0 | procedure)
 
-summary(lm_hospitals5)
-
-lm_hospitals6 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_10mi_total + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
-
-summary(lm_hospitals6)
-
-lm_hospitals7 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_25mi_total  + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
-
-summary(lm_hospitals7)
-
-lm_hospitals8 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_5mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
-
-summary(lm_hospitals8)
-
-lm_hospitals9 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_10mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
-
-summary(lm_hospitals9)
-
-lm_hospitals10 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_25mi_p  + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
-
-summary(lm_hospitals10)
-
-lm_hospitals_insurers_1 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_5mi_p*Anthem_NH + n_hosp_5mi_p*Harvard_Pilgrim_HC + n_hosp_5mi_p*CIGNA + 
-                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
-                     procedure)
-
-summary(lm_hospitals_insurers_1)
-
-lm_hospitals_insurers_2 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_25mi_p*Anthem_NH + n_hosp_25mi_p*Harvard_Pilgrim_HC + n_hosp_25mi_p*CIGNA + 
-                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
-                     procedure)
-
-summary(lm_hospitals_insurers_2)
-
-lm_hospitals_insurers_3 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_5mi_total*Anthem_NH + n_hosp_5mi_total*Harvard_Pilgrim_HC + n_hosp_5mi_total*CIGNA + 
-                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
-                     procedure)
-
-summary(lm_hospitals_insurers_3)
-
-lm_hospitals_insurers_4 <- lm(data = primary_regression_data,
-                   formula = percent_medicare ~ n_hosp_25mi_total*Anthem_NH + n_hosp_25mi_total*Harvard_Pilgrim_HC + n_hosp_25mi_total*CIGNA + 
-                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
-                     procedure)
-
-summary(lm_hospitals_insurers_4)
+felm_hospitals_insurers_4 <- felm(data = primary_regression_data,
+                                  formula = percent_medicare ~ n_hosp_25mi_p*Anthem_NH + n_hosp_25mi_p*Harvard_Pilgrim_HC + n_hosp_25mi_p*CIGNA + 
+                                    typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density 
+                                  | factor(procedure) | 0 | procedure)
 
 uninsured_data <- primary_data %>%
   mutate(`Hospital Quality` = as.numeric(`Hospital overall rating`)) %>% 
   filter(insurer == "Uninsured", !is.na(`ZIP Code`), !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"))
 
-lm_uninsured_1 <- lm(data = uninsured_data,
-                   formula = percent_medicare ~ n_hosp_5mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density + factor(procedure))
+felm_uninsured_1 <- felm(data = uninsured_data,
+                         formula = percent_medicare ~ n_hosp_5mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
+                           median_household_income + percent_pop_over65 + pop_density | factor(procedure) | 0 | procedure)
 
-summary(lm_uninsured_1)
+summary(felm_uninsured_1)
 
-lm_uninsured_2 <- lm(data = uninsured_data,
-                   formula = percent_medicare ~ n_hosp_25mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
-                     median_household_income + percent_pop_over65 + pop_density + factor(procedure))
+felm_uninsured_2 <- felm(data = uninsured_data,
+                         formula = percent_medicare ~ n_hosp_25mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
+                           median_household_income + percent_pop_over65 + pop_density | factor(procedure) | 0 | procedure)
 
-summary(lm_uninsured_2)
+summary(felm_uninsured_2)
 
-lm_providers_1 <- lm(data = primary_regression_data,
+felm_providers_1 <- felm(data = subset(primary_data, !insurer %in% c("Uninsured", "Other") & 
+                                         !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283") &
+                                         precision_of_cost_estimate != "low" & locality == "NEW HAMPSHIRE"),
                    formula = percent_medicare ~ n_provider_5mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
-summary(lm_providers_1)
+                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
+summary(felm_providers_1)
 
-lm_providers_2 <- lm(data = primary_regression_data,
+felm_providers_2 <- felm(data = subset(primary_data, !insurer %in% c("Uninsured", "Other") & 
+                                         !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283") &
+                                         precision_of_cost_estimate != "low" & locality == "NEW HAMPSHIRE"),
                    formula = percent_medicare ~ n_provider_25mi_p + typical_patient_complexity_scale + `Hospital Quality` + 
                      median_household_income + percent_pop_over65 + pop_density +
-                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA + procedure)
-summary(lm_providers_2)
+                     Anthem_NH + Harvard_Pilgrim_HC + CIGNA | factor(procedure) | 0 | procedure)
+summary(felm_providers_2)
 
 
-lm_providers_insurers_1 <- lm(data = primary_regression_data,
+felm_providers_insurers_1 <- felm(data = subset(primary_data, !insurer %in% c("Uninsured", "Other") & 
+                                         !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283") &
+                                         precision_of_cost_estimate != "low" & locality == "NEW HAMPSHIRE"),
                    formula = percent_medicare ~ n_provider_5mi_p*Anthem_NH + n_provider_5mi_p*Harvard_Pilgrim_HC + n_provider_5mi_p*CIGNA + 
-                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
-                     procedure)
+                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density
+                     | factor(procedure) | 0 | procedure)
 
-summary(lm_providers_insurers_1)
+summary(felm_providers_insurers_1)
 
-lm_providers_insurers_2 <- lm(data = primary_regression_data,
+felm_providers_insurers_2 <- felm(data = subset(primary_data, !insurer %in% c("Uninsured", "Other") & 
+                                         !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283") &
+                                         precision_of_cost_estimate != "low" & locality == "NEW HAMPSHIRE"),
                    formula = percent_medicare ~ n_provider_25mi_p*Anthem_NH + n_provider_25mi_p*Harvard_Pilgrim_HC + n_provider_25mi_p*CIGNA + 
-                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
-                     procedure)
+                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density
+                     | factor(procedure) | 0 | procedure)
 
-summary(lm_providers_insurers_2)
+summary(felm_providers_insurers_2)
 ```
 
 \Large {\bf Abstract}
 
 
 \normalsize
-This thesis evaluates how insurers and hospitals are able to exert market power in negotiating prices for hospital care, providing a more holistic picture of hospital price negotiations through synthesizing what currently exists as separate in the literature. Using estimates of insurer-hospital-procedure level prices for outpatient radiology services from New Hampshire's [HealthCost website](https://nhhealthcost.nh.gov/costs/select), I compare the estimated prices for the same service first across insurers and then across hospitals to evaluate how this relates to the insurer or hospital's market share. I find that the private insurer with the largest market share in New Hampshire's commercial market, Anthem/Matthew Thorton, pays on average 23-36% less than the other two major private insurers with smaller market shares with statistical significance. I also estimate that hospitals with one fewer competitors in their market are able to charge roughly 4-15% higher prices (depending on the definition of market) for each procedure after controlling for the insurer, quality, typical patient complexity, and socioeconomic/demographic characteristics. However, the effects of hospital competition on negotiated prices vary heterogenously across different insurers, with Harvard Pilgrim prices being the most sensitive to hospital competition. These results are consistent with the hypothesis that hospital prices are inefficiently influenced by the market power of the negotiating parties, and that policy solutions that can decrease the relative market power of each hospital and increase the market power of insurers may help to reduce prices.
+This thesis evaluates how insurers and hospitals are able to exert market power in negotiating prices for hospital care, providing a more holistic picture of hospital price negotiations through synthesizing what currently exists as separate in the literature. Using estimates of insurer-hospital-procedure level prices for outpatient radiology services from New Hampshire's [HealthCost website](https://nhhealthcost.nh.gov/costs/select), I compare the estimated prices for the same service first across insurers and then across hospitals to evaluate how this relates to the insurer or hospital's market share. I find that on average Anthem/Matthew Thorton, the largest commercial insurer in New Hampshire, pays the lowest private prices, Harvard Pilgrim, the second largest insurer, pays 13.9% more than Anthem, and CIGNA, the smallest major insurer, pays 21.2% more than Anthem with statistical significance and. I also estimate that hospitals with one fewer competitors in their market are able to charge roughly 3-13% higher prices (depending on the definition of market) for each procedure after controlling for the insurer, quality, typical patient complexity, and socioeconomic/demographic characteristics. However, the effects of hospital competition on negotiated prices vary heterogenously across different insurers, with Harvard Pilgrim prices being the most sensitive to hospital competition. These results are consistent with the hypothesis that hospital prices are inefficiently influenced by the market power of the negotiating parties, and that policy solutions that can decrease the relative market power of each hospital and increase the market power of insurers may help to reduce prices.
 
 \newpage
 \pagenumbering{arabic}
@@ -970,14 +944,14 @@ Medicare treats all of New Hampshire as one locality, meaning that all hospitals
 Having constructed price estimates at the insurer-procedure-hospital level using both data sources outlined above, I find that large price variation exists in New Hampshire, and I present in Table 1 the estimated prices for Medicare, the three major private insurers, and the uninsured for the procedures included in my analysis. All price data presented reflect 2018 prices, and the price estimates for private payers have been adjusted to be comprable to Medicare's non-bundled prices. Significant variation exists in the prices paid for the same procedure or service, even when only considering the privately insured. This variation may be efficient if costs and quality vary across hospitals for complex procedures but may be inefficient for services where cost and quality are plausibly constant.
 ```{r, echo=FALSE, results = "asis", fig.align='center', message=FALSE}
 all_procedures <- primary_data %>% 
-  filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283")) %>%
+  filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"), locality == "NEW HAMPSHIRE") %>%
   group_by(procedure) %>% 
   summarize(Median = median(adj_cost_estimate)) %>% 
   mutate(insurer = "All Payers") %>% 
   ungroup()
 
 all_procedures <- primary_data %>%
-  filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283")) %>%
+  filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"), locality == "NEW HAMPSHIRE") %>%
   group_by(procedure, insurer) %>% 
   summarize(Median = median(adj_cost_estimate)) %>% 
   ungroup() %>% 
@@ -1002,12 +976,12 @@ stargazer(all_procedures, summary = FALSE, rownames = FALSE, font.size = "footno
 However, this variation persists even when costs and quality are reasonably assumed to be fixed within the same hospital. Controlling for procedure, across hospital price variation accounts for 16.4% of the total variation but *within* hospital price variation accounts for a further 17.0% of the total variation in my data. For the same service at the same hospital, different payers are charged vastly different amounts. Figure 5 shows the different prices paid by the three major private payers in New Hampshire (Anthem, Harvard Pilgrim, and CIGNA) at the same hospital for spine x-rays (a common outpatient procedure). For all of the hospitals in Figure 5, there is a difference of at least \$100 between what the highest and lowest payers pay.
 
 ```{r, echo=FALSE, message=FALSE}
-xray_prices <- primary_data %>% 
-  filter(procedure == "X-Ray - Spine (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare"), `Hospital Type` != "Non-Hospital Providers") %>% 
+xray_prices <- primary_regression_data %>% 
+  filter(procedure == "X-Ray - Spine (outpatient)") %>% 
   count(provider_name, insurer) %>% 
   count(provider_name) %>% 
-  filter(nn == 3) %>%
-  left_join(primary_data, by = "provider_name") %>% 
+  filter(nn == 4) %>%
+  left_join(primary_regression_data, by = "provider_name") %>% 
   filter(procedure == "X-Ray - Spine (outpatient)", !insurer %in% c("Uninsured", "Other", "Medicare"), precision_of_cost_estimate != "low") %>%
   group_by(provider_name) %>% 
   mutate(range = max(adj_cost_estimate) - min(adj_cost_estimate)) %>% 
@@ -1015,11 +989,13 @@ xray_prices <- primary_data %>%
   ungroup() %>% 
   ggplot(aes(x = fct_reorder(provider_name, adj_cost_estimate), y = adj_cost_estimate, fill = fct_reorder(insurer, -commercial_market_share))) +
   geom_col(position = "dodge", width = 0.5, color = "black") +
+  geom_hline(yintercept = 36.81931, color = "black", size = 0.5) +
   scale_fill_manual(values = c("CIGNA" = "#99CC00", "Anthem NH" = "#336699", "Harvard Pilgrim HC" = "#CC0000"), name = "") +
-  scale_y_continuous(name = "Price Estimate", labels = dollar, breaks = c(0, 25, 50, 75, 100)) +
-  labs(caption = "Note: This plot shows all hospitals for which there was an estimated price difference greater than $100
-       between the highest and lowest paying commercial insurers for spine x-rays. Price estimates come 
-       from HealthCost website and all prices shown are estimated with medium to high precision.") +
+  scale_y_continuous(name = "Price Estimate", labels = c("$0", "$25", "Medicare\nPrice\n$36.82", "$50", "$75", "$100"), 
+                     breaks = c(0, 25, 36.81931, 50, 75, 100)) +
+  labs(caption = "Note: This plot shows all hospitals for which there was an estimated price difference greaterthan $100 
+       between the highest and lowest paying commercial insurers for spine x-rays. Price estimates come from HealthCost 
+       website and all prices shown are estimated with medium to high precision.") +
   coord_flip() +
   theme_tufte() + 
   theme(axis.title.y = element_blank(),
@@ -1043,7 +1019,7 @@ In order to construct hospital markets and define hospital density therein, I us
 
 
 # Empirical Approach
-My analysis seeks to identify whether the market share of hospitals and insurers is related to variation in the prices private insurers pay for hospital services. The first section concerns price variation across insurers and the second concerns price variation across hospitals. I restrict my analyses only to radiology services, which are among some of the most common outpatient procedures, only to hospitals (excluding ambulatory care centers, clinics, specialist practices, etc.), and only to the three major private insurers and Medicare (to provide a base price). This leaves me with 33 services, 31 hospitals,^[Bridgton Hospital in Maine was dropped from the dataset as HealthCost did not provide data on the prices of any radiology services at this hospital] and 2,308 observations.^[HealthCost does not have prices for all three private insurers and all 33 services at each hospital]
+My analysis seeks to identify whether the market share of hospitals and insurers is related to variation in the prices private insurers pay for hospital services. The first section concerns price variation across insurers and the second concerns price variation across hospitals. I restrict my analyses only to radiology services, which are among some of the most common outpatient procedures, only to hospitals in New Hampshire,^[I exclude ambulatory surgical centers, clinics, specialist practices, and private physician practices.] and only to the three major private insurers and Medicare (to provide a base price). This leaves me with 33 services, 26 hospitals, and 1,480 observations.^[I am only able to obtain 1,347 observations of prices paid by either Anthem, Harvard Pilgrim, or CIGNA because NH HealthCost does not provide prices for all three insurers at all 26 New Hampshire Hospitals for all 33 radiology services considered. I also restrict my data to estimates that do not have "low" precision of the estimate, further reducing my total number of private price observations to 773. I do have estimates for the Medicare price at every hospital for every procedure (858 observations)]
 
 Radiology services (CT scans, MRIs, ultrasounds, x-rays, etc.) generally involve the use of an imaging device to capture an image which is then read (examined) by a radiologist who reports their findings to the patient or patient's doctor. The initial cost of purchasing one of these imaging devices is expensive and may vary somewhat, but the per unit cost of procuring and reading an image is likely to be similar across providers once controlling for wages. Particularly within the same hospital, the per unit cost of each radiology service is reasonably assumed to be constant. Similarly, within the same hospital, quality is plausibly assumed constant for the same service. Furthermore, across hospitals, the quality of radiology services is assumed to be relatively similar. While the number of specialized radiologists employed by each hospital may vary, the emergence of telemedicine and New Hampshire legislation encouraging its use (mHealth Intelligence, 0ct. 27, 2015) may help to mitigate these disparities as rural hospitals can send imaging to be reliably read by specialized radiologists employed by telemedicine firms. Particularly after controlling for the hospital's overall quality, I assume that imaging service quality is minimally different between hospitals.
 
@@ -1058,7 +1034,7 @@ In the first set of regressions, I estimate whether there is a statistical diffe
 y_{ijh} = \sum_{k \epsilon K} \gamma_k \left[{insurer_k}\right] + \delta_j + \lambda_h + \varepsilon_{ijh}
 \end{equation}
 
-where $N$ is the set of private insurers (Anthem, Harvard Pilgrim, CIGNA), and ${insurer_n}$ is an indicator variable that takes on the value of 1 or 0. The omitted dummy is Medicare such that the coefficient $\hat \gamma_k$ estimates the percentage of the Medicare price private insurer $k$ pays on average, and the three resulting coefficients of the summation (one $\hat \gamma_k$ for each insurer) are the primary coefficients of interest. The regression also includes procedure fixed effects $\delta_j$ and hospital fixed effects $\lambda_h$ so that the price for the same procedure at the same hospital can be compared among the commercial insurers. The error term is denoted by $\varepsilon_{ijh}$.
+where $K$ is the set of private insurers (Anthem, Harvard Pilgrim, CIGNA), and ${insurer_k}$ is an indicator variable that takes on the value of 1 or 0. The omitted dummy is Medicare such that the coefficient $\hat \gamma_k$ estimates the percentage of the Medicare price private insurer $k$ pays on average, and the three resulting coefficients of the summation (one $\hat \gamma_k$ for each insurer) are the primary coefficients of interest. The regression also includes procedure fixed effects $\delta_j$ and hospital fixed effects $\lambda_h$ so that the price for the same procedure at the same hospital can be compared among the commercial insurers. The error term is denoted by $\varepsilon_{ijh}$.
 
 This analysis only reveals whether there are consistent differences between the prices each insurer pays and a possible correlation between the relative magnitudes of $\hat \gamma_k$ and the market share of insurer $i$. I cannot directly estimate the relationship between the market share of insurer $i$ and the price of procedure $j$ at hospital $h$ because I only have the state-wide market shares of each insurer. Ideally, I would know the market power of each insurer within hospital $h$'s market, and identify the relationship between the prices negotiated by insurer $i$ and hospital $h$ given insurer $i$'s market share in hospital $h$'s market. Nonetheless, in my analysis the relative magnitude of the coefficients $\hat \gamma_k$ and their statistical significance suggest the potential direction of this relationship. That is, each insurer's state-wide market share is known and can be ranked from largest to smallest, and a negative correlation between the size of the insurer's statewide market share and the magnitude of $\hat \gamma_k$ suggests that larger insurers may negotiate cheaper prices.
 
@@ -1085,22 +1061,20 @@ The primary coefficient of interest is $\hat \zeta_k$ which estimates how the ad
 
 
 # Results
-The first set of results presented in Table 2 demonstrate that there are statistically significant differences in the prices paid by each insurer for a particular service at a particular hospital. The coefficients are presented as the average percentage of the Medicare price that each insurer pays and in the primary regression (column 1), they suggest that on average Anthem pays 1.27 times the Medicare price, Harvard Pilgrim pays 1.56 times the Medicare price, and CIGNA 1.73 times the Medicare price. Alternatively, this means that Harvard Pilgrim pays on average 23.2% above Anthem's price and CIGNA 35.9% above Anthem's price.
+The first set of results presented in Table 2 demonstrate that there are statistically significant differences in the prices paid by each insurer for a particular service at a particular hospital. Standard errors are clustered by procedure and hospital when procedure and hospital fixed effects are included. The coefficients are presented as the average percentage *above* the Medicare price that each insurer pays as Medicare is the omitted group and therefore is expected to pay 100% of the Medicare price. In the primary regression (column 1), these estimated coefficients suggest that on average Anthem pays 181% the Medicare price, Harvard Pilgrim pays 206% the Medicare price, and CIGNA 219% the Medicare price. Alternatively, this means that on average Harvard Pilgrim pays 13.9% more than Anthem and CIGNA pays 21.2% more than Anthem. A basic fixed effects linear model of price on market share results in a coefficient on insurer market share that estimates a 1% increase in insurer statewide market share is associated with a 2% decrease in prices.
 ```{r, echo=FALSE, results = "asis", fig.align='center', message=FALSE}
-
-stargazer(lm_insurers3, lm_insurers2, lm_insurers1, header = FALSE,
-          omit = c("provider_name", "procedure"), omit.labels = c("Hospital Fixed Effects", "Procedure Fixed Effects"),
+stargazer(felm_insurers3, felm_insurers2, felm_insurers1, felm_market_share, header = FALSE,
+          omit = c("factor(provider_name)", "factor(procedure)"), omit.labels = c("Hospital Fixed Effects", "Procedure Fixed Effects"),
           keep.stat = c("n", "rsq"),
           title = "Private Insurance Carrier and Relative Prices",
-          covariate.labels = c("Anthem", "Harvard Pilgrim", "CIGNA"), 
+          covariate.labels = c("Anthem", "Harvard Pilgrim", "CIGNA", "Commercial Market Share", "Constant (Medicare)"), 
           dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
-
 ```
 The positive direction of the coefficients is unsurprising as Medicare consistently reimburses providers at much lower rates than do private insurers. The coefficients are estimated using standardized prices that attempt to account for the bundled nature of payments and match prior literature. However, it is interesting to note that among the inpatient services they examine, Cooper et al. (2015) find the greatest disparity in Medicare versus private reimbursement for lower limb MRIs, the only radiology service they consider, estimating that private insurers pay on average four times the Medicare price, so perhaps Medicare is particularly able to set low prices for radiology services given the low per-unit cost of radiology services. Additionally, the price data from HealthCost reflects "bundled" prices as detailed in Section III, so they are likely somewhat inflated compared to the Medicare prices. Importantly however, HealthCost bundles payments in the same way across all three private insurers and therefore the variation in the prices paid by each insurer is unaffected by this imperfect standardization to the Medicare price.
 
-The second set of results presented in Tables 3-4 suggest that the number of hospitals in a hospital's market is negatively related to price at a statistically significant level across all definitions of a hospital's  market. Table 3 presents the results where markets are defined at the hospital level by HSA/HRR or radius, and Table 4 presents the results where markets are defined at the hospital-procedure level by HSA/HRR or radius. These regressions estimate that the addition of one hospital to a hospital's local market (HSA and 5-mile radius definitions) is associated with a decrease in prices equivalent to 13-16% of the Medicare price for that procedure, and if one hospital is added to a hospital's larger market, the associated price decrease is estimated to be 3.5-4% of the Medicare price. On the whole, these results suggest that, controlling for typical patient complexity, hospital quality, and county level characteristics, the greater the number of hospitals in a hospital's market, the lower the prices at that hospital are, and that competitive pressures may be more intense at the loval market level.
+The second set of results presented in Tables 3-4 suggest that the number of hospitals in a hospital's market is negatively related to price at a statistically significant level across all definitions of a hospital's  market. Standard errors are clustered by procedure. Table 3 presents the results where markets are defined at the hospital level by HSA/HRR or radius, and Table 4 presents the results where markets are defined at the hospital-procedure level by HSA/HRR or radius. These regressions estimate that the addition of one hospital to a hospital's local market (HSA and 5-mile radius definitions) is associated with a decrease in prices equivalent to 10-13% of the Medicare price for that procedure, and if one hospital is added to a hospital's larger market, the associated price decrease is estimated to be roughly 3% of the Medicare price. On the whole, these results suggest that, controlling for typical patient complexity, hospital quality, and county level characteristics, the greater the number of hospitals in a hospital's market, the lower the prices at that hospital are, and that competitive pressures may be more intense at the loval market level.
 ```{r, echo=FALSE, results = "asis", message=FALSE}
-stargazer(lm_hospitals1, lm_hospitals2, lm_hospitals5, lm_hospitals7, header = FALSE,
+stargazer(felm_hospitals1, felm_hospitals2, felm_hospitals5, felm_hospitals6, header = FALSE,
           omit = "procedure", omit.labels = "Procedure Fixed Effects",
           keep.stat = c("n", "rsq"),
           title = "Hospital Competition and Relative Price",
@@ -1115,14 +1089,15 @@ stargazer(lm_hospitals1, lm_hospitals2, lm_hospitals5, lm_hospitals7, header = F
                                "Population Density",
                                "Anthem",
                                "Harvard Pilgrim",
-                               "CIGNA"), 
+                               "CIGNA",
+                               "Constant (Medicare)"), 
           dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
 
 ```
 
 ```{r, echo=FALSE, results = "asis", message=FALSE}
 
-stargazer(lm_hospitals3, lm_hospitals4, lm_hospitals8, lm_hospitals10,
+stargazer(felm_hospitals3, felm_hospitals4, felm_hospitals7, felm_hospitals8,
           header = FALSE,
           omit = "procedure", omit.labels = "Procedure Fixed Effects", 
           keep.stat = c("n", "rsq"),
@@ -1138,7 +1113,8 @@ stargazer(lm_hospitals3, lm_hospitals4, lm_hospitals8, lm_hospitals10,
                                "Population Density",
                                "Anthem",
                                "Harvard Pilgrim",
-                               "CIGNA"), 
+                               "CIGNA",
+                               "Constant (Medicare)"), 
           dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
 
 
@@ -1147,18 +1123,22 @@ stargazer(lm_hospitals3, lm_hospitals4, lm_hospitals8, lm_hospitals10,
 In addition the the variables concerned with the hospitals' market share, the control variables also provide some interesting coefficients in that they are all statistically insignificant. This suggests that controls for hospital quality and costs have little to no relation to prices and that hospitals that likely serve more Medicare patients due to a higher percentage of the population being above the age of 65 do not cost shift. That is, hospitals do not appear to charge private payers more to make up for losses incurred by serving more Medicare patients or perhaps do not lose money on Medicare patients for the services considered. Lastly, the dummy variables for each private insurer remain roughly unchanged and maintain the same order of magnitudes from the insurer analysis.
 
 ```{r, echo=FALSE, results = "asis", message=FALSE}
-stargazer(lm_hospitals_insurers_2,  header = FALSE,
+stargazer(felm_hospitals_insurers_1, felm_hospitals_insurers_2,  header = FALSE,
           omit = "procedure", omit.labels = "Procedure Fixed Effects",
           keep.stat = c("n", "rsq"),
-          order = c("n_hosp_5mi_p:Anthem_NH", "n_hosp_5mi_p:Harvard_Pilgrim_HC", "n_hosp_5mi_p:CIGNA", "n_hosp_5mi_p",
-                    "n_hosp_25mi_p:Anthem_NH", "n_hosp_25mi_p:Harvard_Pilgrim_HC", "n_hosp_25mi_p:CIGNA", "n_hosp_25mi_p",
+          order = c("n_hosp_hsa_p:Anthem_NH", "n_hosp_hsa_p:Harvard_Pilgrim_HC", "n_hosp_hsa_p:CIGNA", "n_hosp_hsa_p",
+                    "n_hosp_hrr_p:Anthem_NH", "n_hosp_hrr_p:Harvard_Pilgrim_HC", "n_hosp_hrr_p:CIGNA", "n_hosp_hrr_p",
                     "typical_patient_complexity_scale", "`Hospital Quality`", "median_household_income", "percent_pop_over65", "pop_density",
                     "Anthem_NH", "Harvard_Pilgrim_HC", "CIGNA", "Constant"),
           title = "Hospital Competition by Procedure and Insurer and Relative Price",
-          covariate.labels = c("Hospitals in 25-mile radius w/ procedure x Anthem",
-                               "Hospitals in 25-mile radius w/ procedure x Harvard Pilgrim",
-                               "Hospitals in 25-mile radius w/ procedure x CIGNA",
-                               "Hospitals in 25-mile radius w/ procedure",
+          covariate.labels = c("Hospitals in HSA w/ procedure x Anthem",
+                               "Hospitals in HSA w/ procedure x Harvard Pilgrim",
+                               "Hospitals in HSA w/ procedure x CIGNA",
+                               "Hospitals in HSA w/ procedure",
+                               "Hospitals in HRR w/ procedure x Anthem",
+                               "Hospitals in HRR w/ procedure x Harvard Pilgrim",
+                               "Hospitals in HRR w/ procedure x CIGNA",
+                               "Hospitals in HRR w/ procedure",
                                "Typical Patient Complexity",
                                "Hospital Quality",
                                "Median Income (1000s)",
@@ -1166,11 +1146,62 @@ stargazer(lm_hospitals_insurers_2,  header = FALSE,
                                "Population Density",
                                "Anthem",
                                "Harvard Pilgrim",
-                               "CIGNA"),
-          dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
+                               "CIGNA",
+                               "Constant (Medicare)"),
+          dep.var.labels = "Percent of Medicare Price", font.size = "scriptsize")
 ```
 
-To explore insurer level versus hospital level effects more closely, the last set of results presented in Table 5 shows the interaction between hospital density and each insurer, where hospital density is measured by counting the number of hospitals within a 25-mile radius of hospital $h$ that also offer procedure $j$ as I find this to be the most reasonable specification for hospital competition. The estimated coefficients suggest that the prices Harvard Pilgrim negotiates with hospitals are associated more strongly with the number of hospitals in that hospital's market than for Anthem and CIGNA. The addition of one more hospital that offers procedure $j$ within hospital $h$'s market and also has a contract with Harvard Pilgrim is associated with a price decrease for procedure $j$ at hospital $h$ equivalent to about 6% of the Medicare price for that procedure.
+```{r, echo=FALSE, results = "asis", message=FALSE}
+# felm_hospitals_noHP_1 <- felm(data = subset(primary_regression_data, insurer != "Harvard Pilgrim HC"),
+#                           formula = percent_medicare ~ n_hosp_5mi_p + Anthem_NH + CIGNA +
+#                             typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
+#                             procedure)
+# 
+# felm_hospitals_noHP_2 <- felm(data = subset(primary_regression_data, insurer != "Harvard Pilgrim HC"),
+#                           formula = percent_medicare ~ n_hosp_25mi_p + Anthem_NH + CIGNA +
+#                             typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density +
+#                             procedure)
+# 
+# stargazer(felm_hospitals_noHP_1, felm_hospitals_noHP_2,  header = FALSE,
+#           omit = "procedure", omit.labels = "Procedure Fixed Effects",
+#           keep.stat = c("n", "rsq"),
+#           order = c("n_hosp_5mi_p", "n_hosp_25mi_p",
+#                     "typical_patient_complexity_scale", "`Hospital Quality`", "median_household_income", "percent_pop_over65", "pop_density",
+#                     "Anthem_NH", "CIGNA", "Constant"),
+#           title = "Hospital Competition by Procedure and Relative Price with Harvard Pilgrim excluded",
+#           covariate.labels = c("Hospitals in 5-mile radius w/ procedure",
+#                                "Hospitals in 25-mile radius w/ procedure",
+#                                "Typical Patient Complexity",
+#                                "Hospital Quality",
+#                                "Median Income (1000s)",
+#                                "Percent Population 65 and older",
+#                                "Population Density",
+#                                "Anthem",
+#                                "CIGNA",
+#                                "Constant (Medicare)"),
+#           dep.var.labels = "Percent of Medicare Price", font.size = "footnotesize")
+```
+```{r, echo=FALSE, results = "asis", message=FALSE}
+# primary_regression_data <- primary_regression_data %>% 
+#   mutate(n_hosp_25mi_p = n_hosp_25mi_p - 1, n_hosp_25mi_total = n_hosp_25mi_total - 1, 
+#          n_hosp_5mi_p = n_hosp_5mi_p - 1, n_hosp_5mi_total = n_hosp_5mi_total - 1,
+#          n_hosp_hrr_p = n_hosp_hrr_p - 1, n_hosp_hrr_total = n_hosp_hrr_total - 1,
+#          n_hosp_hsa_p = n_hosp_hsa_p - 1, n_hosp_hsa_total = n_hosp_hsa_total - 1)
+# 
+# felm_insurers <- felm(data = subset(primary_regression_data, insurer != "Medicare"),
+#            formula = percent_medicare ~ Harvard_Pilgrim_HC + CIGNA + provider_name + procedure)
+# 
+# summary(felm_insurers)
+# 
+# felm_hospitals <- felm(data = subset(primary_regression_data, insurer != "Medicare"),
+#                    formula = percent_medicare ~ n_hosp_hsa_total + typical_patient_complexity_scale + `Hospital Quality` + 
+#                      median_household_income + percent_pop_over65 + pop_density +
+#                     Harvard_Pilgrim_HC + CIGNA + procedure)
+# 
+# summary(felm_hospitals)
+```
+
+To explore insurer level versus hospital level effects more closely, the last set of results presented in Table 5 shows the interaction between hospital density and each insurer, where hospital density is measured by counting the number of hospitals within a 5-mile or 25-mile radius of hospital $h$ that also offer procedure $j$ as I find this to be the most reasonable specification for hospital competition. The estimated coefficients suggest that the prices Harvard Pilgrim negotiates with hospitals are associated more strongly with the number of hospitals in that hospital's market than for Anthem and CIGNA. The addition of one more hospital that offers procedure $j$ within hospital $h$'s HSA and also has a contract with Harvard Pilgrim is associated with a price decrease for procedure $j$ equivalent to 37.8% of the Medicare price for that procedure, and if an additional hospital is added to hospital $h$'s HRR, this decrease is equivalent to 4.2% of the Medicare price for that procedure.
 
 
 # Discussion
