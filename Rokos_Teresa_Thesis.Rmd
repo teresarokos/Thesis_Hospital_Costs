@@ -490,7 +490,12 @@ primary_data <- primary_data %>%
                                                 TRUE ~ precision_of_cost_estimate),
          commercial_market_share = case_when(insurer == "Anthem NH" ~ 39,
                                              insurer == "Harvard Pilgrim HC" ~ 27,
-                                             insurer == "CIGNA" ~ 20))
+                                             insurer == "CIGNA" ~ 20),
+         nh_enrollment_share = case_when(insurer == "Anthem NH" ~ 0.5,
+                                             insurer == "Harvard Pilgrim HC" ~ 0.77,
+                                             insurer == "CIGNA" ~ 12),
+         nh_enrollment_share = case_when(`Hospital Type` == "Critical Access Hospitals" ~ 0.5*nh_enrollment_share,
+                                         TRUE ~ nh_enrollment_share))
 
 # Standardizing prices to Medicare
 primary_data <- primary_data %>% 
@@ -535,6 +540,7 @@ primary_data <- primary_data %>%
          n_provider_hrr_p = n_provider_hrr_p - 1,
          n_hosp_hsa_p = n_hosp_hsa_p - 1,
          n_hosp_hrr_p = n_hosp_hrr_p - 1)
+
 ```
 
 ```{r, include=FALSE}
@@ -682,21 +688,21 @@ vcov_hospitals_insurers_7 <- cluster.vcov(lm_hospitals_insurers_7, primary_regre
 se_hospitals_insurers_7 <- sqrt(diag(vcov_hospitals_insurers_7))
 
 lm_hospitals_ms_1 <- lm(data = primary_regression_data,
-                                  formula = percent_medicare ~ n_hosp_5mi_total*commercial_market_share + 
+                                  formula = percent_medicare ~ n_hosp_5mi_total*commercial_market_share + n_hosp_5mi_total*nh_enrollment_share +
                                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density 
                                   + procedure)
 vcov_hospitals_ms_1 <- cluster.vcov(lm_hospitals_ms_1, primary_regression_data$procedure)
 se_hospitals_ms_1 <- sqrt(diag(vcov_hospitals_ms_1))
 
 lm_hospitals_ms_2 <- lm(data = primary_regression_data,
-                                  formula = percent_medicare ~ n_hosp_15mi_total*commercial_market_share + 
+                                  formula = percent_medicare ~ n_hosp_15mi_total*commercial_market_share + + n_hosp_15mi_total*nh_enrollment_share +
                                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density 
                                   + procedure)
 vcov_hospitals_ms_2 <- cluster.vcov(lm_hospitals_ms_2, primary_regression_data$procedure)
 se_hospitals_ms_2 <- sqrt(diag(vcov_hospitals_ms_2))
 
 lm_hospitals_ms_3 <- lm(data = primary_regression_data,
-                                  formula = percent_medicare ~ n_hosp_25mi_total*commercial_market_share + 
+                                  formula = percent_medicare ~ n_hosp_25mi_total*commercial_market_share + n_hosp_25mi_total*nh_enrollment_share +
                                     typical_patient_complexity_scale + `Hospital Quality` + median_household_income + percent_pop_over65 + pop_density 
                                   + procedure)
 vcov_hospitals_ms_3 <- cluster.vcov(lm_hospitals_ms_3, primary_regression_data$procedure)
@@ -818,7 +824,7 @@ se_providers_insurers_2 <- sqrt(diag(vcov_providers_insurers_2))
 
 \normalsize
 
-*There are several amazing people I would like to thank for helping me to write this thesis.*
+*There are several people I would like to thank for helping me to write this thesis.*
 
 *First, I would like to thank my advisor, Professor Vilsa Curto, for her consistent patience, positivity, and brilliant insights. She helped me immensely in every step of the thesis writing process, from defining a topic to finding data to refining my conclusions, and I really appreciate that she took the time to be a first-time thesis advisor for me. I could not have done any of this without her, and I am extremely honored and grateful to have had the chance to work with her.*
 
@@ -1251,7 +1257,7 @@ all_procedures <- step_1 %>%
          Uninsured_sd.x = paste0("(", Uninsured_sd.x, ")"))
 
 kable(all_procedures, format = "latex", caption = "Median Hospital Prices for Radiology Services by Payer", booktabs = T, digits = round(2),
-      col.names = c("Procedure", "Medicare", "Anthem", "", "Harvard Pilgrim", "", "Cigna", "", "Uninsured", "")) %>%
+      col.names = c("Procedure", "Medicare", "Anthem", "", "HP", "", "Cigna", "", "Uninsured", "")) %>%
   kable_styling(latex_options = "scale_down") %>% 
   add_footnote("All prices presented reflect 2018 prices")
 
@@ -1293,7 +1299,7 @@ ggsave("ct_abdomen.png", dpi = 720)
 
 ```
 \begin{figure}
-  \caption{Prices Paid by Private Insurers for Abdominal & Pelvic CT Scans, with Contrast}
+  \caption{Prices Paid by Private Insurers for Abdominal and Pelvic CT Scans, with Contrast}
   \includegraphics[width=\linewidth]{ct_abdomen.png}
 \end{figure}
 
@@ -1339,42 +1345,48 @@ ggsave("xray_spine.png", dpi = 720)
 It is unlikely that the cost of providing each of these services and the quality of each of these services within the same hospital should vary with patients' insurance coverage enough to account for the different prices observed. That is, while Anthem patients could potentially be healthier on average and therefore less expensive to treat than Cigna patients, it is not very plausible that these differences in patient populations would be sufficiently large to account for much of the price variation, particularly for radiology services. Thus my analysis explores other potential sources of this variation, particularly the level of competition among insurers and hospitals that may allow each to exert certain levels of market power in the price bargaining scenario.
 
 ## Additional Data
-Lastly, to provide controls for quality and cost variation, I include quality information from CMS's Hospital Compare data and county-level information on income and population demographics from 2017 US Census Data. CMS's hospital overall ratings attempt to capture the quality of care a hospital may provide compared to other hospitals based on the quality measures reported on Hospital Compare, summarizing into a single rating more than 60 measures in seven measure groups: mortality, safety of care, readmission, patient experience, effectiveness of care, timeliness of care, and efficient use of medical imaging. Hospitals are ranked out of five stars, and my dataset includes two hospitals with two stars, 11 hospitals with three stars, 16 hospitals with four stars, and three hospitals with five stars for their overall ratings. My primary analyses uses only the hospital's overall quality rating as a control. The US Census data I use are county level estimates of median household income, percentage of the population over 65, and population density. 
+Lastly, to provide controls for quality and cost variation, I include quality information from CMS's Hospital Compare data and county-level information on income and population demographics from 2017 US Census Data. CMS's overall hospital ratings attempt to capture the quality of care a hospital may provide compared to other hospitals based on the quality measures reported on Hospital Compare, summarizing into a single rating more than 60 measures in seven measure groups: mortality, safety of care, readmission, patient experience, effectiveness of care, timeliness of care, and efficient use of medical imaging. Hospitals are ranked out of five stars, and my dataset includes two hospitals with two stars, 11 hospitals with three stars, 16 hospitals with four stars, and three hospitals with five stars for their overall ratings. My analyses use only the hospital's overall quality rating as a control. The US Census data I use are county level estimates of median household income, percentage of the population over 65, and population density to provide further controls beyond the Medicare price for hospital's costs. 
 
-In order to construct hospital markets and define hospital density therein, I use geographical information from Dartmouth Atlas of Health Care and Google Maps. Dartmouth Atlas defines and provides data for each hospital's Hospital Service Area (HSA) and Hospital Referral Region (HRR), and these definitions for hospitals' markets are commonly used throughout the literature. An HSA delineates a local market for hospital care, composed of a collection of zip codes whose residents receive most of their hospitalizations from the hospitals in that area. For the most part, this calculation is based on assigning each zip code to the area where the greatest proportion of its Medicare patients were hospitalized. Most HSAs contain only one hospital. An HRR delineates regional health care markets for tertiary medical care and each contains at least one hospital that performs major cardiovascular procedures and neurosurgery. HRRs were largely defined by assigning HSAs to the region where the greatest proportion of major cardiovascular procedures were performed. My dataset contains 29 unique HSAs and 4 unique HRRs, and I count both the total number of hospitals within each hospital's market and the number of hospitals that provide the same service/procedure within that market. My second set of market definitions simply uses coordinate information for each hospital from Google Maps to calculate the total number of hospitals and the number of hospitals offering the same procedure within a 15-mile and 25-mile radius of each hospital.
+In order to construct hospital markets and define hospital competition therein, I use geographical information from Dartmouth Atlas of Health Care and Google Maps. Dartmouth Atlas defines and provides data for each hospital's Hospital Service Area (HSA) and Hospital Referral Region (HRR), and these definitions for hospitals' markets are commonly used throughout the literature. An HSA delineates a local market for hospital care, composed of a collection of zip codes whose residents receive most of their hospitalizations from the hospitals contained in that area. For the most part, this calculation is based on assigning each zip code to the area where the greatest proportion of its Medicare patients were hospitalized. Most HSAs contain only one hospital. An HRR delineates regional health care markets for tertiary medical care and each contains at least one hospital that performs major cardiovascular procedures and neurosurgery. HRRs are largely defined by assigning HSAs to the region where the greatest proportion of major cardiovascular procedures were performed. Thus, both measures are perhaps more relevant to the inpatient setting. My dataset contains 29 unique HSAs and 4 unique HRRs, and I count both the total number of additional hospitals within each hospital's market and the number of additional hospitals that provide the same service/procedure within that market. My second set of market definitions simply uses coordinate information for each hospital from Google Maps to calculate the total number of hospitals and the number of hospitals offering the same procedure within a 15-mile and 25-mile radius of each hospital.
 
 
 
 # Empirical Approach
-My analysis seeks to identify whether the market share of hospitals and insurers is related to variation in the prices private insurers pay for hospital services and whether this effect is heterogeneous accross different insurers. The first set of regressions concern price variation across insurers, the second set evaluates price variation across hospitals, and the third set examines the interaction between the two. In performing these primary analyses, I restrict my dataset to contain only hospitals in New Hampshire,^[I exclude prices atambulatory surgical centers, clinics, specialist practices, and private physician practices in my primary.] and only the three major private insurers. This leaves me with 33 services, 26 hospitals, and 773 observations.^[NH HealthCost does not list prices for all three insurers at all 26 New Hampshire Hospitals for all 33 radiology services considered either because a hospital is not included in a plan's network, the hospital does not offer that procedure, or the observation frequency of certain procedure-insurer-hospital-level prices are too low for accurate estimates. That is, if only two Anthem patients receive an outpatient brain MRI at St. Joseph's hospital during 2018, NH HealthCost does not list a price for this procedure at St. Joseph's for Anthem as estimation power for this procedure-insurer-hospital combination is too low.]
+My analysis seeks to identify whether the market shares of hospitals and insurers are related to variation in the prices private insurers pay for hospital services and whether the effect of hospital market share is heterogeneous accross different insurers. The first set of regressions concern price variation across insurers within hospitals, the second set evaluates price variation across hospital market share holding the insurer constant, and the third set examines heterogeneity in how price variation relates to hospital market share for each insurer. In performing these primary analyses, I restrict my dataset to contain only hospitals in New Hampshire,^[I exclude prices at ambulatory surgical centers, clinics, specialist practices, and private physician practices in my primary.] and only the three major private insurers. This leaves me with 33 services, 26 hospitals, and 773 observations.^[NH HealthCost does not list prices for all three insurers at all 26 New Hampshire Hospitals for all 33 radiology services considered either because a hospital is not included in a plan's network, the hospital does not offer that procedure, or the observation frequency of certain procedure-insurer-hospital-level prices are too low for accurate estimates. That is, if only two Anthem patients receive an outpatient brain MRI at St. Joseph's hospital during 2018, NH HealthCost does not list a price for this procedure at St. Joseph's for Anthem as estimation power for this procedure-insurer-hospital combination is too low.]
 
 In the first set of regressions, I estimate whether there is a statistical difference between the prices for Anthem, Harvard Pilgrim, and Cigna *within the same hospital* for the same service, and whether there is a relationship between these differences and each insurer's market share. I first estimate what percentage of the Medicare price each insurer $i$ pays on average for each service $j$ at each hospital $h$ using the following fixed effects linear model:
 \begin{equation}
 y_{ijh} = \alpha + \beta_1 HP + \beta_2 CIGNA + \delta_j + \lambda_h + \varepsilon_{ijh}
 \end{equation}
-where $HP$ and $CIGNA$ are dummy variables for Harvard Pilgrim and Cigna respectively, $\delta_j$ is the procedure fixed effects term, $\lambda_h$ is the hospital fixed effects term, and the error term is denoted by $\varepsilon_{ijh}$. The omitted insurer dummy is Anthem such that the coefficients $\hat \beta_1$ and $\hat \beta_2$ estimate the percentage of the Medicare price above the Anthem price that Harvard Pilgrim or Cigna pay on average and these are the primary coefficients of interest. By including procedure and hospital fixed effects, I am able to compare prices among the commercial insurers for the same procedure within the same hospital in a context where costs and quality are very plausibly constant. That is, there should be essentially no variation in costs or quality for each radiology service at the same hospital on average.
+where $HP$ and $CIGNA$ are dummy variables for Harvard Pilgrim and Cigna respectively, $\delta_j$ is the procedure fixed effects term, $\lambda_h$ is the hospital fixed effects term, and the error term is denoted by $\varepsilon_{ijh}$. The omitted insurer dummy is Anthem such that the coefficients $\hat \beta_1$ and $\hat \beta_2$ estimate the percentage of the Medicare price above or below the Anthem price that Harvard Pilgrim or Cigna pay on average, and these are the primary coefficients of interest. By including procedure and hospital fixed effects, I am able to compare prices among the commercial insurers for the same procedure within the same hospital in a context where costs and quality are very plausibly constant. That is, there should be essentially no variation in costs or quality for each radiology service at the same hospital on average.
 
 Equation (2) only estimates whether there are consistent differences between the prices each insurer pays, and the signs and relative magnitudes of the estimated coefficients $\hat \beta_1$ and $\hat \beta_2$ may suggest a possible direction to the association between insurer market share and negotiated prices. In order to investigate more closely the magnitude of this relationship, I also estimate the relationship between each insurer's statewide market share $s_i$ and price using the following simple fixed effects regression, restricting my observations only to private insurer prices:
 \begin{equation}
 y_{ijh} = \gamma s_i + \delta_j + \lambda_h + \varepsilon_{ijh}
 \end{equation}
-Ideally, I would know the market power of each insurer within hospital $h$'s market, and identify the relationship between the prices negotiated by insurer $i$ and hospital $h$ given insurer $i$'s market share in hospital $h$'s market to identify the price and market share relationship more precisely, but given the limitations of my dataset, I am only able to examine this relationship to statewide market shares. However, a negative $\hat \gamma$ would fit the narrative that larger insurers in the state may be able to negotiate lower hospital prices more often at New Hampshire hospitals.
+Ideally, I would know the market share of each insurer $i$ within hospital $h$'s market, and identify the relationship between the prices negotiated given these shares to identify the price and market share relationship more precisely, but given the limitations of my dataset, I am only able to examine this relationship to statewide market shares. However, a negative $\hat \gamma$ would fit the narrative that, within hospitals, larger insurers in the state may be able to negotiate lower hospital prices more often at New Hampshire hospitals.
 
-In the second set of regressions, I estimate how hospital market shares relate to the prices each insurer is able to negotiate for each service *across hospitals*. However, as with the imperfect measure of insurer market share, I use an imperfect measure of hospital market share as I am unable to obtain data on the precise outpatient volumes of each hospital for each service. Instead, I construct a measure of the number of *additional* hospitals present in hospital $h$'s market to serve as a proxy for market share and relative hospital concentration in it's inverse form. However, this measure provides only a proxy for hospital market share because while there may be several hospitals in the same market, one may perform significantly more outpatient radiology procedures than the others and therefore have greater market share in the market for that service. This may be due to this hospital having a greater capacity to provide that service or because it is preferred by patients for that service for some other reason. Nevertheless, I hypothesize that because there are so few hospitals present in each market,^[At the broadest definitions of markets, the maximum number of hospitals in any one market is 13 total, but at the smaller market definitions, this number is often less than 5.] the addition of a marginal hospital to hospital $h$'s market will appreciably subtract from hospital $h$'s market share and reduce hospital concentration. I estimate this relationship using roughly the same framework as Equation (2) except that the hospital fixed effects term $\lambda_h$ is decomposed into various observable measures relating to a particular hospital and its market, resulting in the following linear model:
+In the second set of regressions, I estimate how variation in hospital market shares relates to the prices each insurer is able to negotiate for each service *across hospitals*. However, as with the imperfect measure of insurer market share, I use an imperfect measure of hospital market share as I am unable to obtain data on the precise outpatient volumes of each hospital for each service by each insurer. Instead, I construct a measure of the number of *additional* hospitals present in hospital $h$'s market to serve as a proxy for market share and relative hospital concentration in it's inverse form. This measure provides only a proxy for hospital market share because while there may be several hospitals in the same market, one may perform significantly more outpatient radiology procedures than the others and therefore have greater market share in the market for that service. This may be due to this hospital having a greater capacity to provide that service or because it is preferred by patients for that service for some other reason. Nevertheless, I hypothesize that because there are so few hospitals present in each market,^[At the broadest definitions of markets, the maximum number of hospitals in any one market is 13 total, but at the smaller market definitions, this number is often less than 5.] the addition of a marginal hospital to hospital $h$'s market will appreciably subtract from hospital $h$'s market share and reduce hospital concentration. I estimate this relationship using roughly the same framework as Equation (2) except that I decompose the hospital fixed effects term $\lambda_h$ into various observable measures relating to a particular hospital and its market, resulting in the following linear model:
 \begin{equation}
-y_{ijh} = \alpha + \beta_1 HP + \beta_2 CIGNA + \delta_j + \zeta n_h + \pi_1p_{jh} + \pi_2q_h + \bf{\pi_3 X_{c(h)}} + \varepsilon_{ijh}
+y_{ijh} = \alpha + \beta_1 HP + \beta_2 CIGNA + \delta_j + \zeta n_h + \pi_1c_{jh} + \pi_2q_h + \bf{\pi_3 X_{c(h)}} + \varepsilon_{ijh}
 \end{equation}
-where $n_h$ represents the number of additional hospitals in hospital $h$'s market and proxies for hospital competition; $p_{jh}$ denotes the typical patient complexity for procedure $j$ at hospital $h$; $q_h$ denotes overall hospital quality at hospital $h$ as provided through the CMS Hospital Compare data; and $X_{c(h)}$ is a vector of county-level characteristics for each hospital's county $c(h)$ that include the median household income, the percentage of people over 65 years of age, and population density. The primary coefficient of interest in this second set of regressions is $\hat \zeta$ which estimates how hospital competition may be related to prices. If $\hat \zeta$ is negative, this suggests that the more hospital competition there is within a hospital's market, the lower the prices.
+where $n_h$ represents the number of additional hospitals in hospital $h$'s market and proxies for hospital competition; $c_{jh}$ denotes the typical patient complexity for procedure $j$ at hospital $h$; $q_h$ denotes overall hospital quality at hospital $h$ as provided through the CMS Hospital Compare data; and $\bf{X_{c(h)}}$ is a vector of county-level characteristics for each hospital's county $c(h)$ that include the median household income, the percentage of people over 65 years of age, and population density. The primary coefficient of interest in this second set of regressions is $\hat \zeta$ which estimates how hospital competition may be related to prices. If $\hat \zeta$ is negative, this suggests that the more hospital competition there is within a hospital's market, the lower the prices.
 
-A hospital's market is defined differently across several specifications, resulting in different levels of hospital density $n_h$ across different regressions. I first use Hospital Service Area (HSA) and Hospital Referral Region (HRR) definitions for hospitals' markets and count the total number of other hospitals within hospital $h$'s market. In another specification, I also count the number of additional hospitals that provide the same service/procedure within that market such that the hospital competition term in Equation (4) becomes $n_{jh}$. This attempts to isolate whether the hospital is truly competing with other hospitals in its market in providing procedure $j$ or whether it may be the only hospital in its market providing that service and therefore faces no competitors. While the 33 radiology services I have restricted my analysis to are quite common, I do not observe prices for all service-hospital combinations in the HealthCost data because some hospitals provide certain services very infrequently or the observations were dropped due to low precision of the estimate as explained in Section IV.I. Thus, my estimates are based only on service-hospital combinations for which I observe at least one price as this signals the hospital frequently provides the service in the outpatient setting. Most hospitals in the dataset do provide at least half of the relevant services and there does not appear to be a consistent set of services for which price data are missing.
+A hospital's market is defined differently across several specifications, resulting in different levels of hospital density $n_h$ across different regressions. I first use HSA and HRR definitions for hospitals' markets and count the total number of additional hospitals within hospital $h$'s market. In another specification, I also count the number of additional hospitals that provide the same service within that market such that the hospital competition term in Equation (4) becomes $n_{jh}$. This attempts to isolate whether the hospital is truly competing with other hospitals in its market in providing procedure $j$ or whether it may be the only hospital in its market providing that service and therefore faces no competitors.^[Hospitals and insurers often explicity negotiate prices for each individual service, so it is possible that hospitals compete on a procedure-level basis.] While the 33 radiology services I have restricted my analysis to are quite common, I do not observe prices for all service-hospital combinations in the NH HealthCost data because some hospitals provide certain services very infrequently or the observations were dropped due to low precision of the estimate as explained in Section IV.I. Thus, my estimates are based only on service-hospital combinations for which I observe at least one price as this signals the hospital frequently provides the service in the outpatient setting. Most hospitals in the dataset do provide at least half of the relevant services and there does not appear to be a consistent set of services for which price data are missing.
 
-The second set of market definitions I use are based on geographical radii drawn around each hospital. As with the HSA/HRR market definitions, I count the total number of hospitals as well as the number of hospitals that also provide the same service/procedure within a 5-mile radius (local market), 15-mile radius (broader market), and 25-mile radius (even broader market) of each hospital $h$. As the services being examined are all outpatient services, the HSA/HRR definitions may not truly capture the potential patient population and potential competitors because they are calculated on the basis of hospitalization (inpatient) events. For outpatient services, patients may be able to "shop" more easily among different hospitals given their insurance plan. That is, potential patients may place greater weight on convenience and distance to the hospitals they can go to in the outpatient setting rather than the intensity of care they can receive there because their health status is often less acute in the outpatient setting as compared to the inpatient setting. Therefore, insurers may want to provide attractive plans that offer patients enough convenient choice in their relevant market but without facing high premiums or out-of-pocket costs. Thus, this radial measure of a hospital's market may be more applicable to consumers' choices in the outpatient setting.
+The second set of market definitions I use are based on geographical radii drawn around each hospital. As with the HSA/HRR market definitions, I count the total number of hospitals as well as the number of hospitals that also provide the same service/procedure within a 5-mile radius (local market), 15-mile radius (broader market), and 25-mile radius (even broader market) of each hospital $h$. As the services being examined are all outpatient services, the HSA/HRR definitions may not truly capture the potential patient population and potential competitors because they are calculated on the basis of hospitalization (inpatient) events. For outpatient services as compared to inpatient services, patients may place greater weight on convenience and distance to the hospitals in their plan's networks in the outpatient setting rather than the intensity of care they can receive there because their health status is often less acute in the outpatient setting as compared to the inpatient setting. Therefore, insurers may want to provide attractive plans that offer patients enough convenient choice in their relevant market but without facing high premiums or out-of-pocket costs. Thus, this radial measure of a hospital's market may be more applicable to consumers' choices, particularly in the outpatient setting.
 
-In an additional specification of Equation (4), I add an interaction between the number of additional hospitals in hospital $h$'s market and an indicator for each insurer to allow for heterogenous relationships to hospital density. That is, one insurer may be more sensitive to the number of hospitals present in hospital $h$'s market because of their relative bargaining leverage in the price negotiation process. This bargaining leverage may be function of their own market share or something else. In order to test whether potential heterogeneity in insurer and hospital competition relationships are associated with the insurer's statewide market share, I also estimate the following equation:
+The key results of my analysis rely on an additional specification of Equation (4) where I add an interaction between the number of additional hospitals in hospital $h$'s market and an indicator for each insurer to allow for heterogenous relationships to hospital density:
 \begin{equation}
-y_{ijh} = \theta s_i + \delta_j + \zeta n_h + \kappa (n_h * s_i) + \beta_1p_{jh} + \beta_2q_h + \beta_3 X_{c(h)} + \varepsilon_{ijh}
+y_{ijh} = \alpha + \beta_1 HP + \beta_2 CIGNA + \delta_j + \zeta n_h + \tau_1 (n_h \* HP) + \tau_2 (n_h \* CIGNA) 
++ \pi_1c_{jh} + \pi_2q_h + \bf{\pi_3 X_{c(h)}} + \varepsilon_{ijh}
 \end{equation}
-where the insurer dummies in Equation (5) have been replaced with statewide market share to result in an interaction between hospital density and insurer market share $(n_h * s_i)$. The significance of $\hat \kappa$ will test whether the negative effect on prices from hospital density is greater for insurers with greater market share.
+That is, the magnitudes of $\hat \zeta$, $\hat \tau_1$, and $\hat \tau_1$ indicate whether one insurer may be more sensitive to the level of hospital competition present in hospital $h$'s market because of their relative bargaining leverage in the price negotiation process. This bargaining leverage may be a function the market share of insurer $i$ in hospital $h$'s market or a function of hospital $h$ market share in insurer $i$'s market. In order to explore this possibility, I further decompose the insurer dummies of Equation (5) into the insurer's statewide market share $s_i$ as well as the proportion of the insurer's total enrollment composed of New Hampshire residents $e_i^{NH}$ to examine whether these factors are driving heterogeneity across the insurers in the following equation: 
+\begin{equation}
+y_{ijh} = \theta s_i + \vartheta e_i^{NH} + \delta_j + \zeta n_h + \kappa (n_h \* s_i) + \varphi (n_h \* e_i^{NH}) 
++ \pi_1p_{jh} + \pi_2q_h + \bf{\beta_3 X_{c(h)}} + \varepsilon_{ijh}
+\end{equation}
+While ideally I would have the precise, hospital-market level estimates of these values, I proxy for these values using statewide estimates. The limitations of this method are that these statewide distributions may not completely account for the actual market share of a particular insurer $i$ in hospital $h$'s market or of a particular hospital $h$ market share in insurer $i$'s market. The significance of $\hat \kappa$ will test whether the negative effect on prices from hospital density is greater for insurers with greater market share.
 
 
 
@@ -1478,19 +1490,23 @@ stargazer(lm_hospitals_insurers_5, lm_hospitals_insurers_7, lm_hospitals_noHP_1,
           keep.stat = c("n", "rsq"), 
           omit = "procedure",
           title = "Across Hospital Price Variation and Hospital Market Density Across Insurers and Insurer Market Share",
-          column.labels = c("All Major Private Insurers", "No Harvard Pilgrim", "Statewide Market Share"), column.separate = c(2, 2, 2),
+          column.labels = c("All Major Private Insurers", "No Harvard Pilgrim", "Statewide Market Shares"), column.separate = c(2, 2, 2),
           order = c("n_hosp_5mi_total", "n_hosp_5mi_total:Harvard_Pilgrim_HC", "n_hosp_5mi_total:CIGNA", "n_hosp_5mi_total:commercial_market_share",
+                    "n_hosp_5mi_total:nh_enrollment_share",
                     "n_hosp_25mi_total", "n_hosp_25mi_total:Harvard_Pilgrim_HC", "n_hosp_25mi_total:CIGNA", "n_hosp_25mi_total:commercial_market_share",
+                    "n_hosp_25mi_total:nh_enrollment_share",
                     "typical_patient_complexity_scale", "`Hospital Quality`", "median_household_income", "percent_pop_over65", "pop_density",
                     "Harvard_Pilgrim_HC", "CIGNA", "commercial_market_share"),
           covariate.labels = c("5-mile Hospital Density", 
                                "5-mile Density x HP", 
                                "5-mile Density x Cigna", 
                                "5-mile Density x Market Share",
+                               "5-mile Density x NH Enrollment",
                                "25-mile Hospital Density", 
                                "25-mile Density x HP", 
                                "25-mile Density x Cigna", 
                                "25-mile Density x Market Share",
+                               "25-mile Density x NH Enrollment",
                                "Typical Patient Complexity", 
                                "Hospital Quality", 
                                "Median Household Income (1000s)", 
@@ -1499,8 +1515,9 @@ stargazer(lm_hospitals_insurers_5, lm_hospitals_insurers_7, lm_hospitals_noHP_1,
                                "Harvard Pilgrim", 
                                "Cigna", 
                                "Statewide Market Share",
+                               "NH Enrollment Share",
                                "Constant (Anthem)"),
-          dep.var.caption = "\\it{Dependent variable:} \\rm{Percent of Medicare Price}", font.size = "scriptsize", column.sep.width = "2pt",
+          dep.var.caption = "\\it{Dependent variable:} \\rm{Percent of Medicare Price}", font.size = "tiny", column.sep.width = "2pt",
           table.layout = "=lc#-t-a-s-n")
 ```
 
@@ -1528,7 +1545,7 @@ stargazer(lm_providers_1, lm_providers_2, lm_providers_3, lm_providers_4, lm_pro
                                "Harvard Pilgrim",
                                "Cigna",
                                "Constant (Anthem)"),
-          dep.var.caption = "\\it{Dependent variable:} \\rm{Percent of Medicare Price}", font.size = "scriptsize", table.layout = "=lc#-t-a-s-n")
+          dep.var.caption = "\\it{Dependent variable:} \\rm{Percent of Medicare Price}", font.size = "tiny", table.layout = "=lc#-t-a-s-n")
 
 ```
 Next, I evaluate the relationship between hospital density and price again, but this time, restrict my observations to prices for the uninsured. The results demonstrate overall suggest that there is not a clear association between hospital density and the prices paid by the uninsured as the coefficients are sometimes positive and sometimes negative and not consistently statistically significant. In all specifications, however, the coefficients on the controls are statistically significant. Typical patient complexity is strongly and positively associated with higher prices, as is hospital quality and the median household income in the hospital's county, and the percentage of the population 65 and older and population density are both negatively associated with price, also with statitical significance at the 1% level.
@@ -1695,25 +1712,25 @@ unadjusted_prices <- step_1 %>%
 unadjusted_prices <- step_1 %>%
   filter(!is.na(CIGNA)) %>% 
   select(procedure, CIGNA, CIGNA_sd) %>% 
-  left_join(all_procedures, by = "procedure") %>% 
+  left_join(unadjusted_prices, by = "procedure") %>% 
   select(-`CIGNA.y`, -CIGNA_sd.y)
 
 unadjusted_prices <- step_1 %>%
   filter(!is.na(`Harvard Pilgrim HC`)) %>% 
   select(procedure, `Harvard Pilgrim HC`, HP_sd) %>% 
-  left_join(all_procedures, by = "procedure") %>% 
+  left_join(unadjusted_prices, by = "procedure") %>% 
   select(-`Harvard Pilgrim HC.y`, -HP_sd.y)
 
 unadjusted_prices <- step_1 %>%
   filter(!is.na(`Anthem NH`)) %>% 
   select(procedure, `Anthem NH`, Anthem_sd) %>% 
-  left_join(all_procedures, by = "procedure") %>% 
+  left_join(unadjusted_prices, by = "procedure") %>% 
   select(-`Anthem NH.y`, -Anthem_sd.y)
 
 unadjusted_prices <- step_1 %>% 
   filter(!is.na(Medicare)) %>% 
   select(procedure, Medicare) %>% 
-  left_join(all_procedures, by = "procedure") %>% 
+  left_join(unadjusted_prices, by = "procedure") %>% 
   select(-Medicare.y) %>% 
   group_by(procedure) %>% 
   summarize(Medicare.x = mean(Medicare.x), 
@@ -1765,25 +1782,25 @@ unadjusted_percent_MC <- step_1 %>%
 unadjusted_percent_MC <- step_1 %>%
   filter(!is.na(CIGNA)) %>% 
   select(procedure, CIGNA, CIGNA_sd) %>% 
-  left_join(all_procedures, by = "procedure") %>% 
-  select(-CIGNA.y, -CIGNA_sd.y)
+  left_join(unadjusted_percent_MC, by = "procedure") %>% 
+  select(-`CIGNA.y`, -CIGNA_sd.y)
 
 unadjusted_percent_MC <- step_1 %>%
   filter(!is.na(`Harvard Pilgrim HC`)) %>% 
   select(procedure, `Harvard Pilgrim HC`, HP_sd) %>% 
-  left_join(all_procedures, by = "procedure") %>% 
+  left_join(unadjusted_percent_MC, by = "procedure") %>% 
   select(-`Harvard Pilgrim HC.y`, -HP_sd.y)
 
 unadjusted_percent_MC <- step_1 %>%
   filter(!is.na(`Anthem NH`)) %>% 
   select(procedure, `Anthem NH`, Anthem_sd) %>% 
-  left_join(all_procedures, by = "procedure") %>% 
+  left_join(unadjusted_percent_MC, by = "procedure") %>% 
   select(-`Anthem NH.y`, -Anthem_sd.y)
 
 unadjusted_percent_MC <- step_1 %>% 
   filter(!is.na(Medicare)) %>% 
   select(procedure, Medicare) %>% 
-  left_join(all_procedures, by = "procedure") %>% 
+  left_join(unadjusted_percent_MC, by = "procedure") %>% 
   select(-Medicare.y) %>% 
   group_by(procedure) %>% 
   summarize(Medicare.x = mean(Medicare.x), 
