@@ -818,7 +818,7 @@ se_providers_insurers_2 <- sqrt(diag(vcov_providers_insurers_2))
 
 \normalsize
 
-*There are a tremendous number of people I would like to thank for helping me to write this thesis.*
+*There are several amazing people I would like to thank for helping me to write this thesis.*
 
 *First, I would like to thank my advisor, Professor Vilsa Curto, for her consistent patience, positivity, and brilliant insights. She helped me immensely in every step of the thesis writing process, from defining a topic to finding data to refining my conclusions, and I really appreciate that she took the time to be a first-time thesis advisor for me. I could not have done any of this without her, and I am extremely honored and grateful to have had the chance to work with her.*
 
@@ -1187,44 +1187,71 @@ Medicare treats all of New Hampshire as one locality, meaning that all hospitals
 ## Price Variation in the New Hampshire Market
 Having constructed prices at the insurer-procedure-hospital level using both data sources outlined above, I find that large price variation exists in New Hampshire, and I present in Table 1 the price Medicare pays as well as the median adjusted prices for the three major private insurers (Anthem, Harvard Pilgrim, and Cigna) and the uninsured for the 33 procedures included in my analysis. All prices reflect 2018 prices, and the raw unadjusted private prices can be found in Appedix A. Significant variation exists in the prices paid for the same procedure or service, not just between Medicare and the private payers but also when only considering the three major commercial insurers. This variation may be efficient if costs and quality vary across hospitals for complex procedures but may be inefficient for services where cost and quality are plausibly constant.
 ```{r, echo=FALSE, results = "asis", fig.align='center', message=FALSE}
-desc_price <- primary_data %>% 
-  filter(insurer == "Medicare", `Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"), 
-         locality == "NEW HAMPSHIRE") %>% 
-  count(procedure, adj_cost_estimate) %>% 
-  arrange(desc(adj_cost_estimate)) %>% 
-  rename("Procedure" = "procedure") %>% 
-  mutate(Procedure = str_replace_all(Procedure, "&", "/"),
-         Procedure = str_remove_all(Procedure, "\\s*\\([^\\)]+\\)"),
-         Procedure = str_replace_all(Procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
-         Procedure = str_replace_all(Procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
-         Procedure = str_replace_all(Procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
-         Procedure = str_replace_all(Procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast")) %>% 
-  select(Procedure)
 
-
-all_procedures <- primary_data %>%
+step_1 <- primary_data %>%
   filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"), locality == "NEW HAMPSHIRE") %>%
   group_by(procedure, insurer) %>% 
   summarize(Median = median(adj_cost_estimate), sd = sd(adj_cost_estimate)) %>% 
   ungroup() %>% 
   mutate(procedure = str_replace_all(procedure, "&", "/"),
          Median = currency(Median),
-         sd = round(sd, 2),
-         Median_sd = case_when(insurer == "Medicare" ~ paste0(Median, ""),
-                               insurer != "Medicare" ~ paste0(Median, " (", sd, ")"))) %>% 
-  select(procedure, insurer, Median_sd) %>% 
-  spread(key = insurer, value = Median_sd) %>% 
-  select(procedure, Medicare, `Anthem NH`, `Harvard Pilgrim HC`, CIGNA, Uninsured) %>% 
-  rename("Procedure" = "procedure", "Anthem" = "Anthem NH", "Harvard Pilgrim" = "Harvard Pilgrim HC") %>% 
-  mutate(Procedure = str_remove_all(Procedure, "\\s*\\([^\\)]+\\)"),
-         Procedure = str_replace_all(Procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
-         Procedure = str_replace_all(Procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
-         Procedure = str_replace_all(Procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
-         Procedure = str_replace_all(Procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast")) %>% 
-  right_join(desc_price, by = "Procedure")
+         sd = round(sd, 2)) %>% 
+  select(procedure, insurer, Median, sd) %>% 
+  spread(key = insurer, value = Median) %>% 
+  mutate(Anthem_sd = case_when(!is.na(`Anthem NH`) ~ sd),
+         HP_sd = case_when(!is.na(`Harvard Pilgrim HC`) ~ sd),
+         CIGNA_sd = case_when(!is.na(CIGNA) ~ sd),
+         Uninsured_sd = case_when(!is.na(Uninsured) ~ sd)) %>% 
+  select(procedure, Medicare, `Anthem NH`, Anthem_sd, `Harvard Pilgrim HC`, HP_sd, CIGNA, CIGNA_sd, Uninsured, Uninsured_sd)
+
+all_procedures <- step_1 %>%
+  filter(!is.na(Uninsured)) %>% 
+  select(procedure, Uninsured, Uninsured_sd) %>% 
+  left_join(step_1, by = "procedure") %>% 
+  select(-`Uninsured.y`, -Uninsured_sd.y)
+
+all_procedures <- step_1 %>%
+  filter(!is.na(CIGNA)) %>% 
+  select(procedure, CIGNA, CIGNA_sd) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-`CIGNA.y`, -CIGNA_sd.y)
+
+all_procedures <- step_1 %>%
+  filter(!is.na(`Harvard Pilgrim HC`)) %>% 
+  select(procedure, `Harvard Pilgrim HC`, HP_sd) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-`Harvard Pilgrim HC.y`, -HP_sd.y)
+
+all_procedures <- step_1 %>%
+  filter(!is.na(`Anthem NH`)) %>% 
+  select(procedure, `Anthem NH`, Anthem_sd) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-`Anthem NH.y`, -Anthem_sd.y)
+
+all_procedures <- step_1 %>% 
+  filter(!is.na(Medicare)) %>% 
+  select(procedure, Medicare) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-Medicare.y) %>% 
+  group_by(procedure) %>% 
+  summarize(Medicare.x = mean(Medicare.x), 
+            `Anthem NH.x` = mean(`Anthem NH.x`), Anthem_sd.x = mean(Anthem_sd.x), 
+            `Harvard Pilgrim HC.x` = mean(`Harvard Pilgrim HC.x`), HP_sd.x = mean(HP_sd.x), 
+            CIGNA.x = mean(CIGNA.x), CIGNA_sd.x = mean(CIGNA_sd.x), 
+            Uninsured.x = mean(Uninsured.x), Uninsured_sd.x = mean(Uninsured_sd.x)) %>% 
+  arrange(desc(Medicare.x)) %>% 
+  mutate(procedure = str_remove_all(procedure, "\\s*\\([^\\)]+\\)"),
+         procedure = str_replace_all(procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
+         procedure = str_replace_all(procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
+         procedure = str_replace_all(procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
+         procedure = str_replace_all(procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast"),
+         Anthem_sd.x = paste0("(", Anthem_sd.x, ")"), 
+         HP_sd.x = paste0("(", HP_sd.x, ")"), 
+         CIGNA_sd.x = paste0("(", CIGNA_sd.x, ")"), 
+         Uninsured_sd.x = paste0("(", Uninsured_sd.x, ")"))
 
 kable(all_procedures, format = "latex", caption = "Median Hospital Prices for Radiology Services by Payer", booktabs = T, digits = round(2),
-      align = c("l", "r", "r", "r", "r", "r")) %>%
+      col.names = c("Procedure", "Medicare", "Anthem", "", "Harvard Pilgrim", "", "Cigna", "", "Uninsured", "")) %>%
   kable_styling(latex_options = "scale_down") %>% 
   add_footnote("All prices presented reflect 2018 prices")
 
@@ -1232,7 +1259,7 @@ kable(all_procedures, format = "latex", caption = "Median Hospital Prices for Ra
 #           digits = 0, title = "Median Price for Radiology Services by Payer")
 ```
 
-However, this variation persists even when costs and quality are reasonably assumed to be fixed within the same hospital. Controlling for procedure, across hospital price variation accounts for 16.4% of the total variation but *within* hospital price variation accounts for a further 17.0% of the total variation in my data, similar to the findings Cooper et al. (2018).^[Cooper et al. (2018) find that about 20% of total price variation across the services they consider occurs within hospitals for the same procedure after controlling for hospital fixed effects, insurance plan characteristics, and patient characteristics.] For the same service at the same hospital, different payers are charged vastly different amounts. Figure 5 shows the different prices paid by the three major private payers in New Hampshire (Anthem, Harvard Pilgrim, and Cigna) at the same hospital for abdominal CT scans, on of the most expensive outpatient radiology procedures. For several of the hospitals in Figure 5, the difference between what the highest and lowest payers pay exceeds \$500.
+However, this variation persists even when costs and quality are reasonably assumed to be fixed within the same hospital. Controlling for procedure, across hospital price variation accounts for 16.4% of the total variation but *within* hospital price variation accounts for a further 17.0% of the total variation in my data, similar to the findings Cooper et al. (2018).^[Cooper et al. (2018) find that about 20% of total price variation across the services they consider occurs within hospitals for the same procedure after controlling for hospital fixed effects, insurance plan characteristics, and patient characteristics.] For the same service at the same hospital, different payers are charged vastly different amounts. Figure 5 and 6 show the different prices paid by the three major private payers in New Hampshire (Anthem, Harvard Pilgrim, and Cigna) at the same hospital for both a highly expensive and less common service as well as a more common, cheaper service. Relative prices vary significantly for both services. Figure 5 shows the prices paid by different insurers at different hospitals for abdominal CT scans, on of the most expensive outpatient radiology procedures, and Figure 6 shows the prices for spinal x-rays. For several of the hospitals in Figure 5, the difference between what the highest and lowest payers pay exceeds \$500.
 
 ```{r, echo=FALSE, message=FALSE}
 ct_abdomen <- primary_regression_data %>% 
@@ -1245,10 +1272,14 @@ ct_abdomen <- primary_regression_data %>%
   group_by(provider_name, procedure) %>% 
   mutate(range = max(adj_cost_estimate) - min(adj_cost_estimate)) %>% 
   ungroup() %>% 
+  mutate(insurer = case_when(insurer == "Anthem NH" ~ "Anthem",
+                             insurer == "Harvard Pilgrim HC" ~ "Harvard Pilgrim",
+                             insurer == "CIGNA" ~ "Cigna"),
+         provider_name = str_replace_all(provider_name, "Southern NH Medical Center", "Southern NH\nMedical Center")) %>% 
   ggplot(aes(x = fct_reorder(provider_name, adj_cost_estimate), y = adj_cost_estimate, fill = fct_reorder(insurer, -commercial_market_share))) +
   geom_col(position = "dodge", width = 0.5, color = "black") +
   geom_hline(yintercept = 328.29, color = "black", size = 0.5) +
-  scale_fill_manual(values = c("CIGNA" = "#99CC00", "Anthem NH" = "#336699", "Harvard Pilgrim HC" = "#CC0000"), name = "") +
+  scale_fill_manual(values = c("Cigna" = "#99CC00", "Anthem" = "#336699", "Harvard Pilgrim" = "#CC0000"), name = "") +
   scale_y_continuous(name = "Price Estimate", labels = c("$0", "Medicare\nPrice\n$328.29", "$500", "$1000", "$1500"), 
                      breaks = c(0, 328.29, 500, 1000, 1475)) +
 # labs(caption = "Note: This plot shows all hospitals for which there was an estimated price difference greaterthan $100 between the highest and lowest paying commercial insurers for spine x-rays. Price estimates come from HealthCost website and all prices shown are estimated with medium to high precision.") +
@@ -1260,11 +1291,49 @@ ct_abdomen <- primary_regression_data %>%
 
 ggsave("ct_abdomen.png", dpi = 720)
 
+```
+\begin{figure}
+  \caption{Prices Paid by Private Insurers for Abdominal & Pelvic CT Scans, with Contrast}
+  \includegraphics[width=\linewidth]{ct_abdomen.png}
+\end{figure}
+
+```{r, echo=FALSE, message=FALSE}
+xray_spine <- primary_regression_data %>% 
+  filter(procedure == "X-Ray - Spine (outpatient)") %>%
+  count(provider_name, insurer) %>%
+  count(provider_name) %>%
+  filter(n == 3) %>%
+  left_join(primary_regression_data, by = "provider_name") %>%
+  filter(procedure == "X-Ray - Spine (outpatient)") %>%
+  group_by(provider_name, procedure) %>% 
+  mutate(range = max(adj_cost_estimate) - min(adj_cost_estimate)) %>% 
+  ungroup() %>% 
+  filter(range < 50) %>% 
+  mutate(insurer = case_when(insurer == "Anthem NH" ~ "Anthem",
+                             insurer == "Harvard Pilgrim HC" ~ "Harvard Pilgrim",
+                             insurer == "CIGNA" ~ "Cigna"),
+         provider_name = str_replace_all(provider_name, "Southern NH Medical Center", "Southern NH\nMedical Center"),
+         provider_name = str_replace_all(provider_name, "Mary Hitchcock Memorial Hospital", "Mary Hitchcock\nMemorial Hospital")) %>% 
+  ggplot(aes(x = fct_reorder(provider_name, adj_cost_estimate), y = adj_cost_estimate, fill = fct_reorder(insurer, -commercial_market_share))) +
+  geom_col(position = "dodge", width = 0.5, color = "black") +
+  geom_hline(yintercept = 36.82, color = "black", size = 0.5) +
+  scale_fill_manual(values = c("Cigna" = "#99CC00", "Anthem" = "#336699", "Harvard Pilgrim" = "#CC0000"), name = "") +
+  scale_y_continuous(name = "Price Estimate", labels = c("$0", "$25", "Medicare\nPrice\n$36.82", "$50", "$75", "$100"), 
+                     breaks = c(0, 25, 36.82, 50, 75, 100)) +
+# labs(caption = "Note: This plot shows all hospitals for which there was an estimated price difference greaterthan $100 between the highest and lowest paying commercial insurers for spine x-rays. Price estimates come from HealthCost website and all prices shown are estimated with medium to high precision.") +
+  coord_flip() +
+  theme_tufte() + 
+  theme(axis.title.y = element_blank(),
+        legend.position = "bottom",
+        plot.caption = element_text(hjust = 0))
+
+ggsave("xray_spine.png", dpi = 720)
+
 
 ```
 \begin{figure}[ht]
-  \caption{Prices Paid by Private Insurers for Spine X-Rays (Outpatient)}
-  \includegraphics[width=\linewidth]{ct_abdomen.png}
+  \caption{Prices Paid by Private Insurers for Spinal X-Rays (Outpatient)}
+  \includegraphics[width=\linewidth]{xray_spine.png}
 \end{figure}
 
 It is unlikely that the cost of providing each of these services and the quality of each of these services within the same hospital should vary with patients' insurance coverage enough to account for the different prices observed. That is, while Anthem patients could potentially be healthier on average and therefore less expensive to treat than Cigna patients, it is not very plausible that these differences in patient populations would be sufficiently large to account for much of the price variation, particularly for radiology services. Thus my analysis explores other potential sources of this variation, particularly the level of competition among insurers and hospitals that may allow each to exert certain levels of market power in the price bargaining scenario.
@@ -1601,75 +1670,169 @@ $$
 $$
 where $SF_j$ is the standardization factor I use for procedure $j$, the median is taken of the prices paid by the three major private insurers for procedure $j$, and $p_j^{Medicare}$ denotes the Medicare price for that procedue. Thus, this standardization does nothing to affect the shape of each insurer's price distributions relative to one another but simply makes the results more presentable.
 ```{r, echo=FALSE, results = "asis", fig.align='center', message=FALSE}
-# 
-# desc_price <- primary_data %>% 
-#   filter(insurer == "Medicare", `Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"), 
-#          locality == "NEW HAMPSHIRE") %>% 
-#   count(procedure, medicare_price) %>% 
-#   arrange(desc(medicare_price)) %>% 
-#   rename("Procedure" = "procedure") %>% 
-#   mutate(Procedure = str_replace_all(Procedure, "&", "/"),
-#          Procedure = str_remove_all(Procedure, "\\s*\\([^\\)]+\\)"),
-#          Procedure = str_replace_all(Procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
-#          Procedure = str_replace_all(Procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
-#          Procedure = str_replace_all(Procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
-#          Procedure = str_replace_all(Procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast")) %>% 
-#   select(Procedure)
-
-
-unadjusted_prices <- primary_data %>%
+step_1 <- primary_data %>%
   filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"), locality == "NEW HAMPSHIRE") %>%
   group_by(procedure, insurer) %>% 
   summarize(Median = median(estimate_of_total_cost), sd = sd(estimate_of_total_cost)) %>% 
   ungroup() %>% 
   mutate(procedure = str_replace_all(procedure, "&", "/"),
          Median = currency(Median),
-         sd = round(sd, 2),
-         Median_sd = case_when(insurer == "Medicare" ~ paste0(Median, ""),
-                               insurer != "Medicare" ~ paste0(Median, " (", sd, ")"))) %>% 
-  select(procedure, insurer, Median_sd) %>% 
-  spread(key = insurer, value = Median_sd) %>% 
-  select(procedure, Medicare, `Anthem NH`, `Harvard Pilgrim HC`, CIGNA, Uninsured) %>% 
-  rename("Procedure" = "procedure", "Anthem" = "Anthem NH", "Harvard Pilgrim" = "Harvard Pilgrim HC") %>% 
-  mutate(Procedure = str_remove_all(Procedure, "\\s*\\([^\\)]+\\)"),
-         Procedure = str_replace_all(Procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
-         Procedure = str_replace_all(Procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
-         Procedure = str_replace_all(Procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
-         Procedure = str_replace_all(Procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast")) %>% 
-  right_join(desc_price, by = "Procedure")
+         sd = round(sd, 2)) %>% 
+  select(procedure, insurer, Median, sd) %>% 
+  spread(key = insurer, value = Median) %>% 
+  mutate(Anthem_sd = case_when(!is.na(`Anthem NH`) ~ sd),
+         HP_sd = case_when(!is.na(`Harvard Pilgrim HC`) ~ sd),
+         CIGNA_sd = case_when(!is.na(CIGNA) ~ sd),
+         Uninsured_sd = case_when(!is.na(Uninsured) ~ sd)) %>% 
+  select(procedure, Medicare, `Anthem NH`, Anthem_sd, `Harvard Pilgrim HC`, HP_sd, CIGNA, CIGNA_sd, Uninsured, Uninsured_sd)
 
-kable(unadjusted_prices, format = "latex", caption = "Median Hospital Prices for Radiology Services by Payer (Unadjusted)", booktabs = T, digits = round(2),
-      align = c("l", "r", "r", "r", "r", "r")) %>%
+unadjusted_prices <- step_1 %>%
+  filter(!is.na(Uninsured)) %>% 
+  select(procedure, Uninsured, Uninsured_sd) %>% 
+  left_join(step_1, by = "procedure") %>% 
+  select(-`Uninsured.y`, -Uninsured_sd.y)
+
+unadjusted_prices <- step_1 %>%
+  filter(!is.na(CIGNA)) %>% 
+  select(procedure, CIGNA, CIGNA_sd) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-`CIGNA.y`, -CIGNA_sd.y)
+
+unadjusted_prices <- step_1 %>%
+  filter(!is.na(`Harvard Pilgrim HC`)) %>% 
+  select(procedure, `Harvard Pilgrim HC`, HP_sd) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-`Harvard Pilgrim HC.y`, -HP_sd.y)
+
+unadjusted_prices <- step_1 %>%
+  filter(!is.na(`Anthem NH`)) %>% 
+  select(procedure, `Anthem NH`, Anthem_sd) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-`Anthem NH.y`, -Anthem_sd.y)
+
+unadjusted_prices <- step_1 %>% 
+  filter(!is.na(Medicare)) %>% 
+  select(procedure, Medicare) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-Medicare.y) %>% 
+  group_by(procedure) %>% 
+  summarize(Medicare.x = mean(Medicare.x), 
+            `Anthem NH.x` = mean(`Anthem NH.x`), Anthem_sd.x = mean(Anthem_sd.x), 
+            `Harvard Pilgrim HC.x` = mean(`Harvard Pilgrim HC.x`), HP_sd.x = mean(HP_sd.x), 
+            CIGNA.x = mean(CIGNA.x), CIGNA_sd.x = mean(CIGNA_sd.x), 
+            Uninsured.x = mean(Uninsured.x), Uninsured_sd.x = mean(Uninsured_sd.x)) %>% 
+  arrange(desc(Medicare.x)) %>% 
+  mutate(procedure = str_remove_all(procedure, "\\s*\\([^\\)]+\\)"),
+         procedure = str_replace_all(procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
+         procedure = str_replace_all(procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
+         procedure = str_replace_all(procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
+         procedure = str_replace_all(procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast"),
+         Anthem_sd.x = paste0("(", Anthem_sd.x, ")"), 
+         HP_sd.x = paste0("(", HP_sd.x, ")"), 
+         CIGNA_sd.x = paste0("(", CIGNA_sd.x, ")"), 
+         Uninsured_sd.x = paste0("(", Uninsured_sd.x, ")"))
+
+kable(unadjusted_prices, format = "latex", caption = "Median Hospital Prices for Radiology Services by Payer", booktabs = T, digits = round(2),
+      col.names = c("Procedure", "Medicare", "Anthem", "", "Harvard Pilgrim", "", "Cigna", "", "Uninsured", "")) %>%
   kable_styling(latex_options = "scale_down") %>% 
   add_footnote("All prices presented reflect 2018 prices")
 
+##################
 
-unadjusted_percent_MC <- primary_data %>%
+step_1 <- primary_data %>%
   filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"), locality == "NEW HAMPSHIRE") %>%
   mutate(raw_percent_MC = percent_medicare/standardization_fct) %>% 
   group_by(procedure, insurer) %>% 
   summarize(Median = median(raw_percent_MC), sd = sd(raw_percent_MC)) %>% 
   ungroup() %>% 
   mutate(procedure = str_replace_all(procedure, "&", "/"),
-         Median = round(Median, 2),
-         sd = round(sd, 2),
-         Median_sd = case_when(insurer == "Medicare" ~ paste0(Median, ""),
-                               insurer != "Medicare" ~ paste0(Median, " (", sd, ")"))) %>% 
-  select(procedure, insurer, Median_sd) %>% 
-  spread(key = insurer, value = Median_sd) %>% 
-  select(procedure, Medicare, `Anthem NH`, `Harvard Pilgrim HC`, CIGNA, Uninsured) %>% 
-  rename("Procedure" = "procedure", "Anthem" = "Anthem NH", "Harvard Pilgrim" = "Harvard Pilgrim HC") %>% 
-  mutate(Procedure = str_remove_all(Procedure, "\\s*\\([^\\)]+\\)"),
-         Procedure = str_replace_all(Procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
-         Procedure = str_replace_all(Procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
-         Procedure = str_replace_all(Procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
-         Procedure = str_replace_all(Procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast")) %>% 
-  right_join(desc_price, by = "Procedure")
+         Median = currency(Median),
+         sd = round(sd, 2)) %>% 
+  select(procedure, insurer, Median, sd) %>% 
+  spread(key = insurer, value = Median) %>% 
+  mutate(Anthem_sd = case_when(!is.na(`Anthem NH`) ~ sd),
+         HP_sd = case_when(!is.na(`Harvard Pilgrim HC`) ~ sd),
+         CIGNA_sd = case_when(!is.na(CIGNA) ~ sd),
+         Uninsured_sd = case_when(!is.na(Uninsured) ~ sd)) %>% 
+  select(procedure, Medicare, `Anthem NH`, Anthem_sd, `Harvard Pilgrim HC`, HP_sd, CIGNA, CIGNA_sd, Uninsured, Uninsured_sd)
 
-kable(unadjusted_percent_MC, format = "latex", caption = "Median Percent of Medicare Price for Radiology Services by Payer (Unadjusted)", booktabs = T, digits = round(2),
-      align = c("l", "r", "r", "r", "r", "r")) %>%
+unadjusted_percent_MC <- step_1 %>%
+  filter(!is.na(Uninsured)) %>% 
+  select(procedure, Uninsured, Uninsured_sd) %>% 
+  left_join(step_1, by = "procedure") %>% 
+  select(-`Uninsured.y`, -Uninsured_sd.y)
+
+unadjusted_percent_MC <- step_1 %>%
+  filter(!is.na(CIGNA)) %>% 
+  select(procedure, CIGNA, CIGNA_sd) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-CIGNA.y, -CIGNA_sd.y)
+
+unadjusted_percent_MC <- step_1 %>%
+  filter(!is.na(`Harvard Pilgrim HC`)) %>% 
+  select(procedure, `Harvard Pilgrim HC`, HP_sd) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-`Harvard Pilgrim HC.y`, -HP_sd.y)
+
+unadjusted_percent_MC <- step_1 %>%
+  filter(!is.na(`Anthem NH`)) %>% 
+  select(procedure, `Anthem NH`, Anthem_sd) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-`Anthem NH.y`, -Anthem_sd.y)
+
+unadjusted_percent_MC <- step_1 %>% 
+  filter(!is.na(Medicare)) %>% 
+  select(procedure, Medicare) %>% 
+  left_join(all_procedures, by = "procedure") %>% 
+  select(-Medicare.y) %>% 
+  group_by(procedure) %>% 
+  summarize(Medicare.x = mean(Medicare.x), 
+            `Anthem NH.x` = mean(`Anthem NH.x`), Anthem_sd.x = mean(Anthem_sd.x), 
+            `Harvard Pilgrim HC.x` = mean(`Harvard Pilgrim HC.x`), HP_sd.x = mean(HP_sd.x), 
+            CIGNA.x = mean(CIGNA.x), CIGNA_sd.x = mean(CIGNA_sd.x), 
+            Uninsured.x = mean(Uninsured.x), Uninsured_sd.x = mean(Uninsured_sd.x)) %>% 
+  arrange(desc(Medicare.x)) %>% 
+  mutate(procedure = str_remove_all(procedure, "\\s*\\([^\\)]+\\)"),
+         procedure = str_replace_all(procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
+         procedure = str_replace_all(procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
+         procedure = str_replace_all(procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
+         procedure = str_replace_all(procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast"),
+         Anthem_sd.x = paste0("(", Anthem_sd.x, ")"), 
+         HP_sd.x = paste0("(", HP_sd.x, ")"), 
+         CIGNA_sd.x = paste0("(", CIGNA_sd.x, ")"), 
+         Uninsured_sd.x = paste0("(", Uninsured_sd.x, ")"))
+
+kable(unadjusted_prices, format = "latex", caption = "Median Hospital Prices for Radiology Services by Payer", booktabs = T, digits = round(2),
+      col.names = c("Procedure", "Medicare", "Anthem", "", "Harvard Pilgrim", "", "Cigna", "", "Uninsured", "")) %>%
   kable_styling(latex_options = "scale_down") %>% 
   add_footnote("All prices presented reflect 2018 prices")
+
+# unadjusted_percent_MC <- primary_data %>%
+#   filter(`Hospital Type` != "Non-Hospital Providers", !cpt_code %in% c("29826", "42820", "43239", "45378", "99282", "99283"), locality == "NEW HAMPSHIRE") %>%
+#   mutate(raw_percent_MC = percent_medicare/standardization_fct) %>% 
+#   group_by(procedure, insurer) %>% 
+#   summarize(Median = median(raw_percent_MC), sd = sd(raw_percent_MC)) %>% 
+#   ungroup() %>% 
+#   mutate(procedure = str_replace_all(procedure, "&", "/"),
+#          Median = round(Median, 2),
+#          sd = round(sd, 2),
+#          Median_sd = case_when(insurer == "Medicare" ~ paste0(Median, ""),
+#                                insurer != "Medicare" ~ paste0(Median, " (", sd, ")"))) %>% 
+#   select(procedure, insurer, Median_sd) %>% 
+#   spread(key = insurer, value = Median_sd) %>% 
+#   select(procedure, Medicare, `Anthem NH`, `Harvard Pilgrim HC`, CIGNA, Uninsured) %>% 
+#   rename("Procedure" = "procedure", "Anthem" = "Anthem NH", "Harvard Pilgrim" = "Harvard Pilgrim HC") %>% 
+#   mutate(Procedure = str_remove_all(Procedure, "\\s*\\([^\\)]+\\)"),
+#          Procedure = str_replace_all(Procedure, "Emergency Department Visit - Low Complexity", "Emergency Room Visit - Low Level"),
+#          Procedure = str_replace_all(Procedure, "Emergency Room Visit - Medium", "Emergency Room Visit - Medium Level"),
+#          Procedure = str_replace_all(Procedure, "Upper Gastrointestinal Endoscopy, with biopsy", "Upper GI Endoscopy, with biopsy"),
+#          Procedure = str_replace_all(Procedure, "CT - Abdomen / Pelvis, with contrast", "CT - Abdomen/Pelvis, with contrast")) %>% 
+#   right_join(desc_price, by = "Procedure")
+# 
+# kable(unadjusted_percent_MC, format = "latex", caption = "Median Percent of Medicare Price for Radiology Services by Payer (Unadjusted)", booktabs = T, digits = round(2),
+#       align = c("l", "r", "r", "r", "r", "r")) %>%
+#   kable_styling(latex_options = "scale_down") %>% 
+#   add_footnote("All prices presented reflect 2018 prices")
 ```
 
 
